@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { StorageService } from '../services/storage';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -12,10 +13,20 @@ const Login = () => {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        
+        // Security check for email verification
+        const users = StorageService.getUsers();
+        const potentialUser = users.find(u => u.email === email);
+        
+        if (potentialUser && potentialUser.verified === false) {
+             setError('Debes verificar tu correo electrónico antes de ingresar. Revisa tu bandeja de entrada.');
+             return;
+        }
+
         if (login(email, password)) {
             navigate('/');
         } else {
-            setError('Credenciales inválidas. (Prueba: admin@demo.com / 123456)');
+            setError('Credenciales inválidas.');
         }
     };
 
@@ -33,8 +44,9 @@ const Login = () => {
                 </div>
 
                 {error && (
-                    <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm border border-red-200">
-                        {error}
+                    <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm border border-red-200 flex items-start gap-2">
+                        <span className="material-symbols-outlined text-lg mt-0.5">error</span>
+                        <span>{error}</span>
                     </div>
                 )}
 
@@ -71,11 +83,6 @@ const Login = () => {
                         Ingresar
                     </button>
                 </form>
-                
-                <div className="mt-6 text-center text-xs text-slate-400">
-                    <p>Demo Admin: admin@demo.com / 123456</p>
-                    <p>Demo Supervisor: supervisor@demo.com / 123456</p>
-                </div>
             </div>
         </div>
     );

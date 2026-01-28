@@ -7,6 +7,7 @@ export interface User {
     phone: string;
     position: string;
     avatarUrl?: string;
+    verified?: boolean; // New field for email verification status
 }
 
 export interface Client {

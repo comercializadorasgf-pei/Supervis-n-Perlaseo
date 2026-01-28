@@ -36,11 +36,13 @@ const SupervisorsManagement = () => {
             email: formData.email,
             phone: formData.phone,
             position: formData.position,
-            avatarUrl: `https://ui-avatars.com/api/?name=${formData.name}&background=random`
+            avatarUrl: `https://ui-avatars.com/api/?name=${formData.name}&background=random`,
+            verified: false // User starts as unverified
         };
         StorageService.addUser(newUser, formData.password);
         setIsCreateModalOpen(false);
         setFormData({ name: '', email: '', phone: '', position: '', password: '', role: 'supervisor' });
+        alert(`Usuario creado exitosamente.\nSe ha enviado un correo de verificación a ${newUser.email}.`);
     };
 
     const handleDelete = (userId: string) => {
@@ -64,6 +66,18 @@ const SupervisorsManagement = () => {
     const openResetModal = (user: User) => {
         setSelectedUser(user);
         setIsResetModalOpen(true);
+    };
+
+    const handleResendVerification = (user: User) => {
+        alert(`Se ha reenviado el correo de verificación a ${user.email}.`);
+    };
+
+    const handleForceVerify = (user: User) => {
+        if(confirm('¿Marcar este usuario como verificado manualmente? (Solo para pruebas)')) {
+            const updatedUser = { ...user, verified: true };
+            StorageService.updateUser(updatedUser);
+            setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+        }
     };
 
     return (
@@ -124,7 +138,39 @@ const SupervisorsManagement = () => {
                                     </div>
                                 </div>
                                 <h3 className="font-bold text-lg text-slate-900 dark:text-white">{userItem.name}</h3>
-                                <p className="text-primary text-sm font-medium mb-4">{userItem.position}</p>
+                                <p className="text-primary text-sm font-medium mb-2">{userItem.position}</p>
+                                
+                                {userItem.verified === false ? (
+                                    <div className="mb-4">
+                                        <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 text-xs font-bold px-2 py-1 rounded-full border border-amber-200 dark:border-amber-800">
+                                            <span className="material-symbols-outlined text-[14px]">mark_email_unread</span>
+                                            Pendiente Verificación
+                                        </span>
+                                        <div className="flex gap-2 justify-center mt-2">
+                                            <button 
+                                                onClick={() => handleResendVerification(userItem)}
+                                                className="text-xs text-blue-600 hover:underline"
+                                            >
+                                                Reenviar Correo
+                                            </button>
+                                            <span className="text-slate-300">|</span>
+                                            <button 
+                                                onClick={() => handleForceVerify(userItem)}
+                                                className="text-xs text-green-600 hover:underline"
+                                                title="Simular validación"
+                                            >
+                                                Validar (Demo)
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="mb-4 h-6">
+                                         <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-bold">
+                                            <span className="material-symbols-outlined text-[16px]">verified</span>
+                                            Verificado
+                                        </span>
+                                    </div>
+                                )}
                                 
                                 <div className="w-full space-y-2 text-sm text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700 pt-4">
                                     <div className="flex justify-between">
@@ -173,6 +219,10 @@ const SupervisorsManagement = () => {
                                 <div className="border-t border-slate-100 dark:border-slate-700 pt-2 mt-2">
                                     <label className="block text-xs font-bold text-slate-500 mb-1">Contraseña Inicial</label>
                                     <input required type="password" placeholder="Asignar contraseña" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white" />
+                                </div>
+                                
+                                <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-xs text-blue-700 dark:text-blue-300">
+                                    <p><strong>Nota:</strong> Se enviará un correo de verificación. El usuario no podrá acceder hasta validar su cuenta.</p>
                                 </div>
 
                                 <div className="flex gap-2 pt-2">

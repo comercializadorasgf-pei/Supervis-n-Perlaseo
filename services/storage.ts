@@ -2,9 +2,9 @@ import { User, InventoryItem, Report, Client, Visit, Message, StatusLog } from '
 
 // Initial Data Seeding
 const SEED_USERS: User[] = [
-    { id: '1', name: 'Admin Master', email: 'admin@demo.com', role: 'developer', phone: '+52 555 123 4567', position: 'Desarrollador Senior', avatarUrl: 'https://picsum.photos/id/64/200/200' },
-    { id: '2', name: 'Maria Supervisor', email: 'supervisor@demo.com', role: 'supervisor', phone: '+52 555 987 6543', position: 'Supervisor de Zona', avatarUrl: 'https://picsum.photos/id/65/200/200' },
-    { id: '3', name: 'Carlos Técnico', email: 'carlos@demo.com', role: 'supervisor', phone: '+52 555 111 2222', position: 'Soporte Técnico', avatarUrl: 'https://picsum.photos/id/91/200/200' }
+    { id: '1', name: 'Admin Master', email: 'admin@demo.com', role: 'developer', phone: '+52 555 123 4567', position: 'Desarrollador Senior', avatarUrl: 'https://picsum.photos/id/64/200/200', verified: true },
+    { id: '2', name: 'Maria Supervisor', email: 'supervisor@demo.com', role: 'supervisor', phone: '+52 555 987 6543', position: 'Supervisor de Zona', avatarUrl: 'https://picsum.photos/id/65/200/200', verified: true },
+    { id: '3', name: 'Carlos Técnico', email: 'carlos@demo.com', role: 'supervisor', phone: '+52 555 111 2222', position: 'Soporte Técnico', avatarUrl: 'https://picsum.photos/id/91/200/200', verified: true }
 ];
 
 const SEED_CLIENTS: Client[] = [
