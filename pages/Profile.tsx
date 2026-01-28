@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,6 +10,26 @@ const Profile = () => {
     const [msg, setMsg] = useState({ text: '', type: '' });
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Editing State
+    const [isEditing, setIsEditing] = useState(false);
+    const [formData, setFormData] = useState({
+        name: '',
+        phone: '',
+        position: '',
+        email: ''
+    });
+
+    useEffect(() => {
+        if (user) {
+            setFormData({
+                name: user.name,
+                phone: user.phone,
+                position: user.position,
+                email: user.email
+            });
+        }
+    }, [user]);
 
     if (!user) return null;
 
@@ -52,6 +72,31 @@ const Profile = () => {
         }
     };
 
+    const handleUpdateInfo = (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        // Handle Email Migration for Password Key if email changed
+        if (user.email !== formData.email) {
+            const currentPwd = localStorage.getItem(`pwd_${user.email}`);
+            if (currentPwd) {
+                localStorage.setItem(`pwd_${formData.email}`, currentPwd);
+                localStorage.removeItem(`pwd_${user.email}`);
+            }
+        }
+
+        const updatedUser = {
+            ...user,
+            name: formData.name,
+            phone: formData.phone,
+            position: formData.position,
+            email: formData.email
+        };
+
+        updateProfile(updatedUser);
+        setIsEditing(false);
+        setMsg({ text: 'Información de perfil actualizada.', type: 'success' });
+    };
+
     return (
         <div className="flex min-h-screen w-full flex-row overflow-hidden bg-background-light dark:bg-background-dark">
             <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -73,11 +118,37 @@ const Profile = () => {
                 </header>
 
                 <div className="flex-1 max-w-4xl mx-auto w-full p-4 md:p-8">
-                    <div className="flex items-center gap-4 mb-8">
-                        <Link to="/" className="hidden md:flex p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors">
-                            <span className="material-symbols-outlined">arrow_back</span>
-                        </Link>
-                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Mi Perfil</h1>
+                    <div className="flex items-center justify-between gap-4 mb-8">
+                        <div className="flex items-center gap-4">
+                            <Link to="/" className="hidden md:flex p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors">
+                                <span className="material-symbols-outlined">arrow_back</span>
+                            </Link>
+                            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Mi Perfil</h1>
+                        </div>
+                        {isEditing ? (
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => { setIsEditing(false); setFormData({ name: user.name, phone: user.phone, position: user.position, email: user.email }); }}
+                                    className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg font-medium transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    onClick={handleUpdateInfo}
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-lg shadow-green-500/20 transition-colors"
+                                >
+                                    Guardar
+                                </button>
+                            </div>
+                        ) : (
+                            <button 
+                                onClick={() => setIsEditing(true)}
+                                className="px-4 py-2 bg-white dark:bg-slate-800 text-primary border border-primary/20 hover:bg-primary/5 rounded-lg font-bold flex items-center gap-2 transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">edit</span>
+                                Editar Datos
+                            </button>
+                        )}
                     </div>
                     
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -106,24 +177,66 @@ const Profile = () => {
                                     </span>
                                 </div>
                                 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Nombre Completo</label>
-                                        <p className="text-lg font-medium text-slate-900 dark:text-white">{user.name}</p>
+                                {isEditing ? (
+                                    <form onSubmit={handleUpdateInfo} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nombre Completo</label>
+                                            <input 
+                                                required 
+                                                value={formData.name} 
+                                                onChange={e => setFormData({...formData, name: e.target.value})}
+                                                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cargo / Puesto</label>
+                                            <input 
+                                                required 
+                                                value={formData.position} 
+                                                onChange={e => setFormData({...formData, position: e.target.value})}
+                                                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Correo Electrónico</label>
+                                            <input 
+                                                required 
+                                                type="email"
+                                                value={formData.email} 
+                                                onChange={e => setFormData({...formData, email: e.target.value})}
+                                                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Teléfono Móvil</label>
+                                            <input 
+                                                required 
+                                                value={formData.phone} 
+                                                onChange={e => setFormData({...formData, phone: e.target.value})}
+                                                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
+                                            />
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Nombre Completo</label>
+                                            <p className="text-lg font-medium text-slate-900 dark:text-white">{user.name}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Cargo / Puesto</label>
+                                            <p className="text-lg font-medium text-slate-900 dark:text-white">{user.position}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Correo Electrónico</label>
+                                            <p className="text-lg font-medium text-slate-900 dark:text-white">{user.email}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Teléfono Móvil</label>
+                                            <p className="text-lg font-medium text-slate-900 dark:text-white">{user.phone}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Cargo / Puesto</label>
-                                        <p className="text-lg font-medium text-slate-900 dark:text-white">{user.position}</p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Correo Electrónico</label>
-                                        <p className="text-lg font-medium text-slate-900 dark:text-white">{user.email}</p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Teléfono Móvil</label>
-                                        <p className="text-lg font-medium text-slate-900 dark:text-white">{user.phone}</p>
-                                    </div>
-                                </div>
+                                )}
                             </div>
                         </div>
 

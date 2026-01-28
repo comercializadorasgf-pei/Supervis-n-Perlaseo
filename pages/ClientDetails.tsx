@@ -255,7 +255,7 @@ const ClientDetails = () => {
                             </div>
                         </div>
                         <div className="flex flex-col gap-3">
-                            <Link to="/create-visit" className="flex items-center gap-2 cursor-pointer justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary hover:bg-primary-dark transition-colors text-white text-sm font-bold shadow-md shadow-blue-500/20">
+                            <Link to={`/create-visit?clientId=${client.id}`} className="flex items-center gap-2 cursor-pointer justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary hover:bg-primary-dark transition-colors text-white text-sm font-bold shadow-md shadow-blue-500/20">
                                 <span className="material-symbols-outlined text-[20px]">add</span>
                                 <span className="hidden sm:inline">Nueva Visita</span>
                             </Link>

@@ -8,10 +8,11 @@ const SupervisorsManagement = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false); // New Edit State
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     
-    // Forms
+    // Create Form Data
     const [formData, setFormData] = useState({ 
         name: '', 
         email: '', 
@@ -20,12 +21,16 @@ const SupervisorsManagement = () => {
         password: '',
         role: 'supervisor' as 'supervisor' | 'developer' 
     });
+
+    // Edit Form Data
+    const [editFormData, setEditFormData] = useState<User | null>(null);
+
     const [newPassword, setNewPassword] = useState('');
 
     useEffect(() => {
         // Show all users for management
         setUsers(StorageService.getUsers());
-    }, [isCreateModalOpen, isResetModalOpen]);
+    }, [isCreateModalOpen, isResetModalOpen, isEditModalOpen]);
 
     const handleCreate = (e: React.FormEvent) => {
         e.preventDefault();
@@ -51,6 +56,24 @@ const SupervisorsManagement = () => {
             setUsers(prev => prev.filter(u => u.id !== userId));
         }
     };
+
+    // --- Edit Logic ---
+    const openEditModal = (user: User) => {
+        setEditFormData(user);
+        setIsEditModalOpen(true);
+    };
+
+    const handleUpdateUser = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (editFormData) {
+            StorageService.updateUser(editFormData);
+            setUsers(prev => prev.map(u => u.id === editFormData.id ? editFormData : u));
+            setIsEditModalOpen(false);
+            setEditFormData(null);
+            alert('Información de usuario actualizada correctamente.');
+        }
+    };
+    // ------------------
 
     const handleResetPassword = (e: React.FormEvent) => {
         e.preventDefault();
@@ -121,6 +144,9 @@ const SupervisorsManagement = () => {
                         {users.map(userItem => (
                             <div key={userItem.id} className="bg-white dark:bg-surface-dark p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center relative group">
                                 <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => openEditModal(userItem)} className="p-1.5 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-500" title="Editar Información">
+                                        <span className="material-symbols-outlined text-[20px]">edit</span>
+                                    </button>
                                     <button onClick={() => openResetModal(userItem)} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500" title="Restablecer Contraseña">
                                         <span className="material-symbols-outlined text-[20px]">key</span>
                                     </button>
@@ -228,6 +254,55 @@ const SupervisorsManagement = () => {
                                 <div className="flex gap-2 pt-2">
                                     <button type="button" onClick={() => setIsCreateModalOpen(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-white dark:border-slate-600">Cancelar</button>
                                     <button type="submit" className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark">Guardar</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* EDIT USER MODAL */}
+                {isEditModalOpen && editFormData && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="bg-white dark:bg-surface-dark rounded-xl w-full max-w-md p-6 shadow-2xl">
+                            <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">Editar Perfil de Usuario</h3>
+                            <form onSubmit={handleUpdateUser} className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Rol del Sistema</label>
+                                    <select 
+                                        value={editFormData.role} 
+                                        onChange={e => setEditFormData({...editFormData, role: e.target.value as any})}
+                                        className="w-full p-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                    >
+                                        <option value="supervisor">Supervisor (Usuario)</option>
+                                        <option value="developer">Desarrollador (Admin)</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Nombre Completo</label>
+                                    <input required value={editFormData.name} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white" />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Correo Electrónico</label>
+                                    <input required type="email" value={editFormData.email} onChange={e => setEditFormData({...editFormData, email: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white" />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Teléfono</label>
+                                    <input required value={editFormData.phone} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white" />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Cargo / Puesto</label>
+                                    <input required value={editFormData.position} onChange={e => setEditFormData({...editFormData, position: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white" />
+                                </div>
+
+                                <div className="flex gap-2 pt-4">
+                                    <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-white dark:border-slate-600">Cancelar</button>
+                                    <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-md shadow-blue-500/20">
+                                        Guardar Cambios
+                                    </button>
                                 </div>
                             </form>
                         </div>

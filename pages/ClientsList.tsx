@@ -188,12 +188,12 @@ const ClientsList = () => {
                                                 <span>Importar CSV</span>
                                             </button>
                                         </div>
+                                        <Link to="/create-client" className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-lg font-bold text-sm transition-all shadow-lg shadow-primary/20 whitespace-nowrap">
+                                            <span className="material-symbols-outlined text-[20px]">add_circle</span>
+                                            <span>Añadir Nuevo Cliente</span>
+                                        </Link>
                                     </>
                                 )}
-                                <Link to="/create-client" className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-lg font-bold text-sm transition-all shadow-lg shadow-primary/20 whitespace-nowrap">
-                                    <span className="material-symbols-outlined text-[20px]">add_circle</span>
-                                    <span>Añadir Nuevo Cliente</span>
-                                </Link>
                             </div>
                         </div>
                         
@@ -318,6 +318,13 @@ const ClientsList = () => {
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
                                                         <div className="flex items-center justify-end gap-1">
+                                                            <Link 
+                                                                to={`/create-visit?clientId=${client.id}`} 
+                                                                className="inline-flex items-center justify-center p-2 text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20 rounded-lg transition-colors mr-1"
+                                                                title="Nueva Visita"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[20px]">add_circle</span>
+                                                            </Link>
                                                             <Link to={`/client-details/${client.id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-3 py-1.5 rounded-lg transition-colors mr-2">
                                                                 Ver Historial
                                                                 <span className="material-symbols-outlined text-[16px]">arrow_forward</span>

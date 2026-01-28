@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { BarChart, Bar, ResponsiveContainer, XAxis, Tooltip } from 'recharts';
 import { StorageService } from '../services/storage';
-import { Visit, Client, User } from '../types';
+import { Visit, Client, User, InventoryItem } from '../types';
 import VisitPreviewModal from '../components/VisitPreviewModal';
 import VisitActionModal from '../components/VisitActionModal';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ChartData {
     day: string;
@@ -13,11 +14,18 @@ interface ChartData {
 }
 
 const Dashboard = () => {
+    const { user } = useAuth();
     const [recentVisits, setRecentVisits] = useState<Visit[]>([]);
     const [stats, setStats] = useState({
         visitsCount: 0,
         clientsCount: 0,
         supervisorsCount: 0
+    });
+    const [inventoryStats, setInventoryStats] = useState({
+        total: 0,
+        available: 0,
+        assigned: 0,
+        maintenance: 0
     });
     
     // Chart State
@@ -41,6 +49,7 @@ const Dashboard = () => {
         const visits = StorageService.getVisits();
         const clients = StorageService.getClients();
         const users = StorageService.getUsers();
+        const inventory = StorageService.getInventory();
         const sups = users.filter(u => u.role === 'supervisor');
 
         setRecentVisits(visits.slice(0, 5)); // Get last 5
@@ -50,6 +59,13 @@ const Dashboard = () => {
             visitsCount: visits.length,
             clientsCount: clients.length,
             supervisorsCount: sups.length
+        });
+
+        setInventoryStats({
+            total: inventory.length,
+            available: inventory.filter(i => i.status === 'Disponible').length,
+            assigned: inventory.filter(i => i.status === 'Asignado').length,
+            maintenance: inventory.filter(i => i.status === 'En Taller').length
         });
 
         processChartData(visits, selectedSupervisorId);
@@ -215,7 +231,7 @@ const Dashboard = () => {
                         </Link>
                     </div>
 
-                    {/* Charts & Actions */}
+                    {/* Charts & Actions / Inventory */}
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
                         {/* Chart */}
                         <div className="xl:col-span-2 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
@@ -295,40 +311,89 @@ const Dashboard = () => {
                             </div>
                         </div>
 
-                        {/* Quick Access */}
+                        {/* Right Column: Quick Access (Dev) OR Inventory Stats (Supervisor) */}
                         <div className="flex flex-col gap-4">
-                            <div className="rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-5 shadow-sm h-full">
-                                <h3 className="text-[#0d141b] dark:text-white text-lg font-bold mb-4">Accesos Rápidos</h3>
-                                <div className="grid grid-cols-1 gap-3">
-                                    <Link to="/supervisors-manage" className="flex items-center gap-3 p-3 rounded-lg border border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group text-left">
-                                        <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg text-primary">
-                                            <span className="material-symbols-outlined">person_add</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-sm text-[#0d141b] dark:text-white group-hover:text-primary">Registrar Usuario</p>
-                                            <p className="text-xs text-[#4c739a] dark:text-slate-400">Supervisores y Admins</p>
-                                        </div>
-                                    </Link>
-                                    <Link to="/create-client" className="flex items-center gap-3 p-3 rounded-lg border border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group">
-                                        <div className="bg-green-100 dark:bg-green-900/40 p-2 rounded-lg text-green-600">
-                                            <span className="material-symbols-outlined">domain_add</span>
-                                        </div>
-                                        <div className="text-left">
-                                            <p className="font-medium text-sm text-[#0d141b] dark:text-white group-hover:text-primary">Nuevo Cliente</p>
-                                            <p className="text-xs text--[#4c739a] dark:text-slate-400">Crear perfil de empresa</p>
-                                        </div>
-                                    </Link>
-                                    <button className="flex items-center gap-3 p-3 rounded-lg border border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group text-left">
-                                        <div className="bg-orange-100 dark:bg-orange-900/40 p-2 rounded-lg text-orange-600">
-                                            <span className="material-symbols-outlined">download</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-sm text-[#0d141b] dark:text-white group-hover:text-primary">Exportar Data</p>
-                                            <p className="text-xs text-[#4c739a] dark:text-slate-400">Descargar CSV mensual</p>
-                                        </div>
-                                    </button>
+                            {/* Developer: Quick Access */}
+                            {user?.role === 'developer' && (
+                                <div className="rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-5 shadow-sm h-full">
+                                    <h3 className="text-[#0d141b] dark:text-white text-lg font-bold mb-4">Accesos Rápidos</h3>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <Link to="/supervisors-manage" className="flex items-center gap-3 p-3 rounded-lg border border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group text-left">
+                                            <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg text-primary">
+                                                <span className="material-symbols-outlined">person_add</span>
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-sm text-[#0d141b] dark:text-white group-hover:text-primary">Registrar Usuario</p>
+                                                <p className="text-xs text-[#4c739a] dark:text-slate-400">Supervisores y Admins</p>
+                                            </div>
+                                        </Link>
+                                        <Link to="/create-client" className="flex items-center gap-3 p-3 rounded-lg border border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group">
+                                            <div className="bg-green-100 dark:bg-green-900/40 p-2 rounded-lg text-green-600">
+                                                <span className="material-symbols-outlined">domain_add</span>
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-medium text-sm text-[#0d141b] dark:text-white group-hover:text-primary">Nuevo Cliente</p>
+                                                <p className="text-xs text--[#4c739a] dark:text-slate-400">Crear perfil de empresa</p>
+                                            </div>
+                                        </Link>
+                                        <button className="flex items-center gap-3 p-3 rounded-lg border border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group text-left">
+                                            <div className="bg-orange-100 dark:bg-orange-900/40 p-2 rounded-lg text-orange-600">
+                                                <span className="material-symbols-outlined">download</span>
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-sm text-[#0d141b] dark:text-white group-hover:text-primary">Exportar Data</p>
+                                                <p className="text-xs text-[#4c739a] dark:text-slate-400">Descargar CSV mensual</p>
+                                            </div>
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
+
+                            {/* Supervisor: Inventory Stats */}
+                            {user?.role === 'supervisor' && (
+                                <div className="rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-5 shadow-sm h-full">
+                                    <h3 className="text-[#0d141b] dark:text-white text-lg font-bold mb-4">Estado de Inventario</h3>
+                                    <div className="flex flex-col gap-4">
+                                        {/* Total */}
+                                        <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                            <div className="flex items-center gap-3">
+                                                <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg text-primary">
+                                                    <span className="material-symbols-outlined">inventory_2</span>
+                                                </div>
+                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Total Equipos</span>
+                                            </div>
+                                            <span className="text-xl font-bold text-slate-900 dark:text-white">{inventoryStats.total}</span>
+                                        </div>
+
+                                        {/* Breakdown */}
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                                                    <span className="size-2 rounded-full bg-green-500"></span> Disponible
+                                                </span>
+                                                <span className="font-bold text-slate-900 dark:text-white">{inventoryStats.available}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                                                    <span className="size-2 rounded-full bg-blue-500"></span> Asignado
+                                                </span>
+                                                <span className="font-bold text-slate-900 dark:text-white">{inventoryStats.assigned}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                                                    <span className="size-2 rounded-full bg-orange-500"></span> En Taller
+                                                </span>
+                                                <span className="font-bold text-slate-900 dark:text-white">{inventoryStats.maintenance}</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <Link to="/inventory" className="mt-2 text-center text-sm text-primary font-medium hover:underline flex items-center justify-center gap-1">
+                                            Ver Inventario Completo
+                                            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                                        </Link>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 

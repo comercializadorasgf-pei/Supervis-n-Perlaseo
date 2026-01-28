@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { StorageService } from '../services/storage';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +8,7 @@ import { Client, User, Visit } from '../types';
 const CreateVisit = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     
     const [clients, setClients] = useState<Client[]>([]);
     const [supervisors, setSupervisors] = useState<User[]>([]);
@@ -21,15 +22,36 @@ const CreateVisit = () => {
     });
 
     useEffect(() => {
-        setClients(StorageService.getClients());
+        const loadedClients = StorageService.getClients();
+        setClients(loadedClients);
+        
         const allUsers = StorageService.getUsers();
         setSupervisors(allUsers.filter(u => u.role === 'supervisor'));
         
         // Auto-select self if supervisor
+        let initialSupId = '';
         if (user?.role === 'supervisor') {
-            setFormData(prev => ({ ...prev, supervisorId: user.id }));
+            initialSupId = user.id;
         }
-    }, [user]);
+
+        // Check for URL params to pre-fill client
+        const preSelectedClientId = searchParams.get('clientId');
+        let initialClientInput = '';
+        
+        if (preSelectedClientId) {
+            const foundClient = loadedClients.find(c => c.id === preSelectedClientId);
+            if (foundClient) {
+                initialClientInput = `${foundClient.name} (ID: ${foundClient.id})`;
+            }
+        }
+
+        setFormData(prev => ({ 
+            ...prev, 
+            supervisorId: initialSupId || prev.supervisorId,
+            clientInput: initialClientInput || prev.clientInput
+        }));
+
+    }, [user, searchParams]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

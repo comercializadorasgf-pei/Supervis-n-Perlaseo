@@ -112,10 +112,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
                                         <span className={`material-symbols-outlined ${isActive('/supervisor-tracking') ? 'fill' : ''}`}>share_location</span>
                                         <p className="text-sm font-medium leading-normal">Monitoreo GPS</p>
                                     </Link>
-                                    <Link to="/clients" onClick={onClose} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive('/clients') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0d141b] dark:text-slate-200'}`}>
-                                        <span className={`material-symbols-outlined ${isActive('/clients') ? 'fill' : ''}`}>work</span>
-                                        <p className="text-sm font-medium leading-normal">Clientes</p>
-                                    </Link>
                                     <Link to="/supervisors-manage" onClick={onClose} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive('/supervisors-manage') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0d141b] dark:text-slate-200'}`}>
                                         <span className={`material-symbols-outlined ${isActive('/supervisors-manage') ? 'fill' : ''}`}>manage_accounts</span>
                                         <p className="text-sm font-medium leading-normal">Gestión de Usuarios</p>
@@ -147,7 +143,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
                                 </>
                             )}
 
-                            {/* Common with different permissions */}
+                            {/* Common Modules */}
+                            <Link to="/clients" onClick={onClose} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive('/clients') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0d141b] dark:text-slate-200'}`}>
+                                <span className={`material-symbols-outlined ${isActive('/clients') ? 'fill' : ''}`}>work</span>
+                                <p className="text-sm font-medium leading-normal">Clientes</p>
+                            </Link>
+
                             <Link to="/inventory" onClick={onClose} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive('/inventory') ? 'bg-primary/10 text-primary' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-[#0d141b] dark:text-slate-200'}`}>
                                 <span className={`material-symbols-outlined ${isActive('/inventory') ? 'fill' : ''}`}>inventory_2</span>
                                 <p className="text-sm font-medium leading-normal">Inventario</p>
