@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -25,6 +25,36 @@ const ProtectedRoute = ({ children }: { children?: React.ReactNode }) => {
 };
 
 const App = () => {
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        // Simulate app initialization / splash screen duration
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+        }, 2200);
+        return () => clearTimeout(timer);
+    }, []);
+
+    if (isLoading) {
+        return (
+            <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#f6f7f8] dark:bg-[#101922] transition-all duration-500">
+                <div className="flex flex-col items-center animate-pulse">
+                    <img 
+                        src="https://crenavzuzjpccsxfnfsp.supabase.co/storage/v1/object/public/Logo%20SGf/Logo-completo-sin-fondo.webp" 
+                        alt="Logo" 
+                        className="w-48 md:w-64 h-auto object-contain mb-8 drop-shadow-xl" 
+                    />
+                    <div className="flex gap-3">
+                        <div className="w-3 h-3 bg-[#137fec] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                        <div className="w-3 h-3 bg-[#137fec] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                        <div className="w-3 h-3 bg-[#137fec] rounded-full animate-bounce"></div>
+                    </div>
+                    <p className="mt-6 text-slate-400 text-xs font-bold tracking-[0.2em] uppercase">Cargando Sistema</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <AuthProvider>
             <HashRouter>

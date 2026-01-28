@@ -65,11 +65,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
                         
                         {/* Logo & Mobile Close */}
                         <div className="flex items-center justify-between lg:justify-center relative py-2">
-                            <img 
-                                src="https://crenavzuzjpccsxfnfsp.supabase.co/storage/v1/object/public/Logo%20SGf/Logo-completo-sin-fondo.webp" 
-                                alt="Logo" 
-                                className="h-10 w-auto object-contain" 
-                            />
+                            <Link to="/" onClick={onClose} className="hover:opacity-80 transition-opacity">
+                                <img 
+                                    src="https://crenavzuzjpccsxfnfsp.supabase.co/storage/v1/object/public/Logo%20SGf/Logo-completo-sin-fondo.webp" 
+                                    alt="Logo" 
+                                    className="h-10 w-auto object-contain" 
+                                />
+                            </Link>
                             {/* Mobile Close Button */}
                             <div className="lg:hidden">
                                 <button onClick={onClose} className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
@@ -78,13 +80,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-3 px-2 py-4 border-b border-border-light dark:border-border-dark mb-2">
-                            <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-12 shadow-sm shrink-0" style={{backgroundImage: `url("${user.avatarUrl || 'https://ui-avatars.com/api/?name=' + user.name}")`}}></div>
+                        <Link to="/profile" onClick={onClose} className="flex items-center gap-3 px-2 py-4 border-b border-border-light dark:border-border-dark mb-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors group cursor-pointer">
+                            <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-12 shadow-sm shrink-0 border-2 border-transparent group-hover:border-primary transition-colors" style={{backgroundImage: `url("${user.avatarUrl || 'https://ui-avatars.com/api/?name=' + user.name}")`}}></div>
                             <div className="flex flex-col min-w-0">
-                                <h1 className="text-[#0d141b] dark:text-white text-base font-bold leading-normal truncate">{user.name}</h1>
+                                <h1 className="text-[#0d141b] dark:text-white text-base font-bold leading-normal truncate group-hover:text-primary transition-colors">{user.name}</h1>
                                 <p className="text-[#4c739a] dark:text-slate-400 text-xs font-normal leading-normal capitalize truncate">{user.role}</p>
                             </div>
-                        </div>
+                        </Link>
                         
                         <nav className="flex flex-col gap-2">
                             {/* Common Links */}

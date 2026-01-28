@@ -10,6 +10,7 @@ const Inventory = () => {
     const [items, setItems] = useState<InventoryItem[]>([]);
     const [clients, setClients] = useState<Client[]>([]); // State for clients list
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const assignFileInputRef = useRef<HTMLInputElement>(null);
     const maintFileInputRef = useRef<HTMLInputElement>(null);
     const csvInputRef = useRef<HTMLInputElement>(null);
     const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -23,7 +24,7 @@ const Inventory = () => {
 
     // Form States
     const [newItem, setNewItem] = useState({ name: '', description: '', serialNumber: '', imageUrl: '' });
-    const [assignData, setAssignData] = useState({ clientId: '', post: '', operatorName: '', observations: '' });
+    const [assignData, setAssignData] = useState({ clientId: '', post: '', operatorName: '', observations: '', photoUrl: '' });
     const [maintData, setMaintData] = useState({ 
         date: new Date().toISOString().slice(0, 16), // YYYY-MM-DDTHH:MM
         workshopName: '', 
@@ -88,7 +89,7 @@ const Inventory = () => {
 
     const handleAssignStart = (item: InventoryItem) => {
         setSelectedItem(item);
-        setAssignData({ clientId: '', post: '', operatorName: '', observations: '' }); // Reset form
+        setAssignData({ clientId: '', post: '', operatorName: '', observations: '', photoUrl: '' }); // Reset form
         setIsAssignModalOpen(true);
     };
 
@@ -137,7 +138,8 @@ const Inventory = () => {
             date: new Date().toLocaleDateString(),
             supervisorSignature: 'SIGNED_BY_' + user.name, 
             operatorSignature: 'SIGNED_BY_' + assignData.operatorName,
-            observations: assignData.observations
+            observations: assignData.observations,
+            photoUrl: assignData.photoUrl
         };
 
         // Create Status Log
@@ -160,7 +162,7 @@ const Inventory = () => {
 
         StorageService.updateInventoryItem(updatedItem);
         setIsAssignModalOpen(false);
-        setAssignData({ clientId: '', post: '', operatorName: '', observations: '' });
+        setAssignData({ clientId: '', post: '', operatorName: '', observations: '', photoUrl: '' });
         setSelectedItem(null);
         setItems(StorageService.getInventory());
     };
@@ -507,7 +509,7 @@ const Inventory = () => {
                 {/* ASSIGN MODAL */}
                 {isAssignModalOpen && selectedItem && (
                     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                        <div className="bg-white dark:bg-surface-dark rounded-xl w-full max-w-lg p-6">
+                        <div className="bg-white dark:bg-surface-dark rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
                             <h3 className="text-xl font-bold mb-2 dark:text-white">Asignar: {selectedItem.name}</h3>
                             <p className="text-sm text-slate-500 mb-4">Complete los datos de entrega y recepción.</p>
                             
@@ -547,6 +549,32 @@ const Inventory = () => {
                                         className="w-full p-2 border rounded dark:bg-slate-800 dark:text-white dark:border-slate-600 text-sm"
                                         placeholder="Ej. Se entrega con rayones leves..."
                                     ></textarea>
+                                </div>
+
+                                {/* Assignment Photo Support */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Evidencia de Entrega / Foto</label>
+                                    <div className="flex items-center gap-4">
+                                        <div 
+                                            onClick={() => assignFileInputRef.current?.click()}
+                                            className="size-20 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg flex items-center justify-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+                                        >
+                                            {assignData.photoUrl ? (
+                                                <img src={assignData.photoUrl} className="w-full h-full object-cover rounded-lg" />
+                                            ) : (
+                                                <span className="material-symbols-outlined text-slate-400">add_a_photo</span>
+                                            )}
+                                        </div>
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            capture="environment" 
+                                            ref={assignFileInputRef}
+                                            onChange={(e) => handleImageUpload(e, setAssignData, 'photoUrl')}
+                                            className="hidden"
+                                        />
+                                        <p className="text-xs text-slate-500">Opcional: Adjuntar soporte fotográfico.</p>
+                                    </div>
                                 </div>
 
                                 <div className="flex justify-end gap-2 pt-4">
@@ -677,11 +705,24 @@ const Inventory = () => {
                                 <div className="md:col-span-2 flex flex-col gap-6">
                                     {/* Current Assignment Card */}
                                     {selectedItem.status === 'Asignado' && selectedItem.assignment && (
-                                        <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl p-5">
+                                        <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl p-5 relative">
                                             <h3 className="font-bold text-blue-800 dark:text-blue-300 flex items-center gap-2 mb-4">
                                                 <span className="material-symbols-outlined">person_pin_circle</span>
                                                 Asignación Actual
                                             </h3>
+                                            
+                                            {/* Photo Badge */}
+                                            {selectedItem.assignment.photoUrl && (
+                                                <div className="absolute top-5 right-5 group">
+                                                    <div className="size-10 rounded-lg overflow-hidden border border-blue-200 cursor-pointer shadow-sm bg-white">
+                                                        <img src={selectedItem.assignment.photoUrl} className="w-full h-full object-cover" />
+                                                    </div>
+                                                    <div className="absolute right-0 top-full mt-1 hidden group-hover:block z-20">
+                                                        <img src={selectedItem.assignment.photoUrl} className="max-w-[200px] rounded-lg shadow-xl border border-slate-200" />
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                                 <div>
                                                     <p className="text-blue-600/70 dark:text-blue-400/70 text-xs font-bold uppercase mb-1">Ubicación / Puesto</p>

@@ -1,3 +1,4 @@
+
 export interface User {
     id: string;
     name: string;
@@ -74,6 +75,7 @@ export interface AssignmentDetails {
     supervisorSignature: string; 
     operatorSignature: string;
     observations?: string; // New field
+    photoUrl?: string; // Evidence photo
 }
 
 export interface MaintenanceRecord {

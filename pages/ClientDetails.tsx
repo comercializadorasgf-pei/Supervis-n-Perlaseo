@@ -47,9 +47,22 @@ const ClientDetails = () => {
         const history: InventoryHistoryItem[] = [];
 
         inventory.forEach(item => {
+            // Identify active assignment to prevent duplication from history
+            const activeAssignment = (item.status === 'Asignado' && item.assignment) ? item.assignment : null;
+
             // Check past history
             if (item.history) {
                 item.history.forEach(record => {
+                    // Fix: Skip this record if it matches the current active assignment
+                    // This prevents the item from appearing twice (once as Active, once as History)
+                    if (activeAssignment && 
+                        record.date === activeAssignment.date && 
+                        record.operatorName === activeAssignment.operatorName &&
+                        record.post === activeAssignment.post
+                    ) {
+                        return;
+                    }
+
                     // Match by ID (preferred) or Name (legacy backup)
                     if (record.clientId === clientId || (foundClient && record.post === foundClient.name)) {
                         history.push({
@@ -61,11 +74,12 @@ const ClientDetails = () => {
                     }
                 });
             }
-            // Check current active assignment
-            if (item.status === 'Asignado' && item.assignment) {
-                if (item.assignment.clientId === clientId || (foundClient && item.assignment.post === foundClient.name)) {
+            
+            // Check active assignment (Prioritized to show as Current)
+            if (activeAssignment) {
+                if (activeAssignment.clientId === clientId || (foundClient && activeAssignment.post === foundClient.name)) {
                     history.push({
-                        ...item.assignment,
+                        ...activeAssignment,
                         itemName: item.name,
                         serial: item.serialNumber,
                         isCurrent: true
@@ -90,7 +104,9 @@ const ClientDetails = () => {
         if (parts.length === 3) {
             return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
         }
-        return new Date();
+        // Fallback for ISO or other formats
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? new Date() : d;
     };
 
     const calculateDuration = (startStr: string, endStr?: string) => {
@@ -320,10 +336,20 @@ const ClientDetails = () => {
                                 <tbody>
                                     {inventoryHistory.length > 0 ? (
                                         inventoryHistory.map((item, idx) => (
-                                            <tr key={idx} className={`border-b border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${item.isCurrent ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
-                                                <td className="px-4 py-3 font-medium text-slate-900 dark:text-white flex items-center gap-2">
-                                                    {item.itemName}
-                                                    {item.isCurrent && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">ACTIVO</span>}
+                                            <tr key={idx} className={`border-b border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all ${item.isCurrent ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500' : 'border-l-4 border-l-transparent'}`}>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium text-slate-900 dark:text-white">{item.itemName}</span>
+                                                        {item.isCurrent && (
+                                                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-sm">
+                                                                <span className="relative flex h-2 w-2">
+                                                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                                                </span>
+                                                                ASIGNADO
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3 font-mono text-xs">{item.serial}</td>
                                                 <td className="px-4 py-3">{item.date}</td>
