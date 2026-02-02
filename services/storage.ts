@@ -138,26 +138,41 @@ const SEED_INVENTORY: InventoryItem[] = [
 const SEED_REPORTS: Report[] = [];
 const SEED_MESSAGES: Message[] = [];
 
-// Helper to initialize storage
+// Helper to initialize storage safely
 const initStorage = () => {
-    if (!localStorage.getItem('app_users')) localStorage.setItem('app_users', JSON.stringify(SEED_USERS));
-    if (!localStorage.getItem('app_inventory')) localStorage.setItem('app_inventory', JSON.stringify(SEED_INVENTORY));
-    if (!localStorage.getItem('app_reports')) localStorage.setItem('app_reports', JSON.stringify(SEED_REPORTS));
-    if (!localStorage.getItem('app_clients')) localStorage.setItem('app_clients', JSON.stringify(SEED_CLIENTS));
-    if (!localStorage.getItem('app_visits')) localStorage.setItem('app_visits', JSON.stringify(SEED_VISITS));
-    if (!localStorage.getItem('app_messages')) localStorage.setItem('app_messages', JSON.stringify(SEED_MESSAGES));
-    
-    // Init default passwords
-    if (!localStorage.getItem('pwd_admin@demo.com')) localStorage.setItem('pwd_admin@demo.com', '123456');
-    if (!localStorage.getItem('pwd_supervisor@demo.com')) localStorage.setItem('pwd_supervisor@demo.com', '123456');
-    if (!localStorage.getItem('pwd_carlos@demo.com')) localStorage.setItem('pwd_carlos@demo.com', '123456');
+    try {
+        if (!localStorage.getItem('app_users')) localStorage.setItem('app_users', JSON.stringify(SEED_USERS));
+        if (!localStorage.getItem('app_inventory')) localStorage.setItem('app_inventory', JSON.stringify(SEED_INVENTORY));
+        if (!localStorage.getItem('app_reports')) localStorage.setItem('app_reports', JSON.stringify(SEED_REPORTS));
+        if (!localStorage.getItem('app_clients')) localStorage.setItem('app_clients', JSON.stringify(SEED_CLIENTS));
+        if (!localStorage.getItem('app_visits')) localStorage.setItem('app_visits', JSON.stringify(SEED_VISITS));
+        if (!localStorage.getItem('app_messages')) localStorage.setItem('app_messages', JSON.stringify(SEED_MESSAGES));
+        
+        // Init default passwords
+        if (!localStorage.getItem('pwd_admin@demo.com')) localStorage.setItem('pwd_admin@demo.com', '123456');
+        if (!localStorage.getItem('pwd_supervisor@demo.com')) localStorage.setItem('pwd_supervisor@demo.com', '123456');
+        if (!localStorage.getItem('pwd_carlos@demo.com')) localStorage.setItem('pwd_carlos@demo.com', '123456');
+    } catch (e) {
+        console.error("Storage Initialization Error", e);
+    }
 };
 
 initStorage();
 
+// Safe parser helper
+const safeParse = (key: string, defaultVal: any) => {
+    try {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : defaultVal;
+    } catch (e) {
+        console.error(`Error parsing ${key}`, e);
+        return defaultVal;
+    }
+};
+
 export const StorageService = {
     // Users
-    getUsers: (): User[] => JSON.parse(localStorage.getItem('app_users') || '[]'),
+    getUsers: (): User[] => safeParse('app_users', []),
     
     addUser: (user: User, initialPassword?: string) => {
         const users = StorageService.getUsers();
@@ -228,11 +243,10 @@ export const StorageService = {
     },
 
     // Clients
-    getClients: (): Client[] => JSON.parse(localStorage.getItem('app_clients') || '[]'),
+    getClients: (): Client[] => safeParse('app_clients', []),
     
     addClient: (client: Client) => {
         const clients = StorageService.getClients();
-        // Ensure ID is generated if not provided or collision (basic check)
         if (!client.id || clients.some(c => c.id === client.id)) {
              const count = clients.length + 1;
              client.id = `CL-${String(count).padStart(3, '0')}`;
@@ -241,7 +255,6 @@ export const StorageService = {
         localStorage.setItem('app_clients', JSON.stringify(clients));
     },
 
-    // Bulk upload with Upsert logic
     addClientsBulk: (newClients: Partial<Client>[]) => {
         const clients = StorageService.getClients();
         let createdCount = 0;
@@ -254,7 +267,6 @@ export const StorageService = {
             'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-900/50'
         ];
 
-        // Determine next ID sequence to avoid collisions
         let maxId = 0;
         clients.forEach(c => {
              const num = parseInt(c.id.replace('CL-', ''));
@@ -262,31 +274,26 @@ export const StorageService = {
         });
 
         newClients.forEach(c => {
-            // Identifier strategy: Prefer NIT, fallback to Email
             const existingIndex = clients.findIndex(existing => 
                 (c.nit && existing.nit === c.nit) || 
                 (c.email && existing.email === c.email)
             );
 
             if (existingIndex !== -1) {
-                // UPDATE EXISTING
                 const existing = clients[existingIndex];
                 clients[existingIndex] = {
                     ...existing,
-                    ...c, // Overwrite with new data from CSV
-                    id: existing.id, // Preserve system ID
-                    // Preserve stats and dynamic fields
+                    ...c,
+                    id: existing.id,
                     totalVisits: existing.totalVisits,
                     lastVisitDate: existing.lastVisitDate,
                     colorClass: existing.colorClass || colors[0],
-                    // Recalculate initials if name provided
                     initials: c.name 
                         ? c.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
                         : existing.initials
                 };
                 updatedCount++;
             } else {
-                // CREATE NEW
                 maxId++;
                 const newId = `CL-${String(maxId).padStart(3, '0')}`;
                 const initials = c.name ? c.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'XX';
@@ -331,7 +338,7 @@ export const StorageService = {
     },
 
     // Visits
-    getVisits: (): Visit[] => JSON.parse(localStorage.getItem('app_visits') || '[]'),
+    getVisits: (): Visit[] => safeParse('app_visits', []),
     
     getVisitById: (id: string): Visit | undefined => {
         const visits = StorageService.getVisits();
@@ -360,7 +367,7 @@ export const StorageService = {
     },
 
     // Inventory
-    getInventory: (): InventoryItem[] => JSON.parse(localStorage.getItem('app_inventory') || '[]'),
+    getInventory: (): InventoryItem[] => safeParse('app_inventory', []),
     
     addInventoryItem: (item: InventoryItem) => {
         const inv = StorageService.getInventory();
@@ -374,14 +381,13 @@ export const StorageService = {
         let skippedCount = 0;
 
         newItems.forEach((item, index) => {
-            // Check for duplicate by Serial Number
             const exists = item.serialNumber && inventory.some(existing => 
                 existing.serialNumber.toLowerCase() === item.serialNumber?.toLowerCase()
             );
 
             if (!exists && item.name) {
                 const newItem: InventoryItem = {
-                    id: `${Date.now()}-${index}`, // Unique ID
+                    id: `${Date.now()}-${index}`,
                     name: item.name,
                     description: item.description || '',
                     serialNumber: item.serialNumber || 'SN-UNKNOWN',
@@ -428,7 +434,7 @@ export const StorageService = {
 
     // Reports 
     getReports: (clientId: string): Report[] => {
-        const legacyReports = JSON.parse(localStorage.getItem('app_reports') || '[]').filter((r: Report) => r.clientId === clientId);
+        const legacyReports = safeParse('app_reports', []).filter((r: Report) => r.clientId === clientId);
         const visits = StorageService.getVisits();
         const visitReports: Report[] = visits
             .filter(v => v.clientId === clientId && v.status === 'Completed')
@@ -445,7 +451,7 @@ export const StorageService = {
     },
 
     // Messages
-    getMessages: (): Message[] => JSON.parse(localStorage.getItem('app_messages') || '[]'),
+    getMessages: (): Message[] => safeParse('app_messages', []),
     
     sendMessage: (msg: Message) => {
         const msgs = StorageService.getMessages();

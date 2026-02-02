@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
-import mapboxgl from 'mapbox-gl'; // Import from module
+import mapboxgl from 'mapbox-gl'; 
 import { CONFIG } from '../config';
 
 // Interface for Visit History
@@ -94,17 +94,26 @@ const SupervisorTracking = () => {
     useEffect(() => {
         if (map.current) return; // initialize map only once
         
-        mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
-        
-        if (mapContainer.current) {
-            map.current = new mapboxgl.Map({
-                container: mapContainer.current,
-                style: 'mapbox://styles/mapbox/streets-v12',
-                center: [-99.1332, 19.4326], // [lng, lat]
-                zoom: 12
-            });
+        try {
+            if (CONFIG && CONFIG.MAPBOX_TOKEN) {
+                mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
+            } else {
+                console.warn("Mapbox Token missing in config.");
+                return;
+            }
+            
+            if (mapContainer.current) {
+                map.current = new mapboxgl.Map({
+                    container: mapContainer.current,
+                    style: 'mapbox://styles/mapbox/streets-v12',
+                    center: [-99.1332, 19.4326], // [lng, lat]
+                    zoom: 12
+                });
 
-            map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+                map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+            }
+        } catch (e) {
+            console.error("Error initializing Mapbox:", e);
         }
     }, []);
 
@@ -198,33 +207,38 @@ const SupervisorTracking = () => {
                     }
                 };
 
-                if (map.current!.getSource(sourceId)) {
-                    (map.current!.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(geoJson);
-                } else {
-                    map.current!.addSource(sourceId, {
-                        type: 'geojson',
-                        data: geoJson
-                    });
-                    map.current!.addLayer({
-                        id: sourceId,
-                        type: 'line',
-                        source: sourceId,
-                        layout: {
-                            'line-join': 'round',
-                            'line-cap': 'round'
-                        },
-                        paint: {
-                            'line-color': sup.id === selectedSup ? '#137fec' : '#22c55e',
-                            'line-width': 4,
-                            'line-opacity': 0.7
-                        }
-                    });
+                // Check if map source exists securely
+                try {
+                    if (map.current?.getSource(sourceId)) {
+                        (map.current.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(geoJson);
+                    } else {
+                        map.current?.addSource(sourceId, {
+                            type: 'geojson',
+                            data: geoJson
+                        });
+                        map.current?.addLayer({
+                            id: sourceId,
+                            type: 'line',
+                            source: sourceId,
+                            layout: {
+                                'line-join': 'round',
+                                'line-cap': 'round'
+                            },
+                            paint: {
+                                'line-color': sup.id === selectedSup ? '#137fec' : '#22c55e',
+                                'line-width': 4,
+                                'line-opacity': 0.7
+                            }
+                        });
+                    }
+                } catch(err) {
+                    console.error("Error updating route layer", err);
                 }
             } else {
                  // Clean up layer if hidden
                  const sourceId = `route-${sup.id}`;
-                 if (map.current!.getLayer(sourceId)) map.current!.removeLayer(sourceId);
-                 if (map.current!.getSource(sourceId)) map.current!.removeSource(sourceId);
+                 if (map.current?.getLayer(sourceId)) map.current.removeLayer(sourceId);
+                 if (map.current?.getSource(sourceId)) map.current.removeSource(sourceId);
             }
         });
     }, [supervisors, selectedSup, showRoutes]);
