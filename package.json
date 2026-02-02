@@ -14,7 +14,8 @@
     "react-dom": "^19.2.3",
     "react-router-dom": "^7.11.0",
     "html2canvas": "1.4.1",
-    "jspdf": "2.5.1"
+    "jspdf": "2.5.1",
+    "mapbox-gl": "3.1.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

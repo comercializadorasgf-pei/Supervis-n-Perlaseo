@@ -184,6 +184,7 @@ export const StorageService = {
         const user = users.find(u => u.id === userId);
         if (user) {
             localStorage.removeItem(`pwd_${user.email}`); 
+            localStorage.removeItem(`otp_${user.email}`);
         }
         const filtered = users.filter(u => u.id !== userId);
         localStorage.setItem('app_users', JSON.stringify(filtered));
@@ -200,6 +201,30 @@ export const StorageService = {
 
     updatePassword: (email: string, newPassword: string) => {
         localStorage.setItem(`pwd_${email}`, newPassword);
+    },
+
+    // OTP / Verification Logic
+    setOTP: (email: string, code: string) => {
+        localStorage.setItem(`otp_${email}`, code);
+    },
+    
+    getOTP: (email: string) => {
+        return localStorage.getItem(`otp_${email}`);
+    },
+
+    clearOTP: (email: string) => {
+        localStorage.removeItem(`otp_${email}`);
+    },
+    
+    verifyUserEmail: (email: string) => {
+        const users = StorageService.getUsers();
+        const index = users.findIndex(u => u.email === email);
+        if (index !== -1) {
+            users[index].verified = true;
+            localStorage.setItem('app_users', JSON.stringify(users));
+            return true;
+        }
+        return false;
     },
 
     // Clients

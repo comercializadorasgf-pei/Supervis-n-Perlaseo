@@ -1,0 +1,6 @@
+export const CONFIG = {
+  SUPABASE_URL: "https://obcdoeephxuwbxwjctyb.supabase.co",
+  SUPABASE_ANON_KEY: "seyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9iY2RvZWVwaHh1d2J4d2pjdHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1MzgxMDMsImV4cCI6MjA4NTExNDEwM30.yvG4cxwUEAz5NW4zVCvGZCyPmpCex6fSr2KuM4xAy18",
+  MAPBOX_TOKEN: "pk.eyJ1IjoiZHJhZ2lzaHBhayIsImEiOiJjbWwxN2wydGYwNHgyM2ZwdnN0Zmx1MmNuIn0.ZjpSlqa3VjJkOQTs6Xoskg",
+  GEMINI_API_KEY: "PLACEHOLDER_API_KEY"
+};

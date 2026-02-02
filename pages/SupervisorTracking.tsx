@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
-
-// IMPORTANT: Replace with your valid Google Maps API Key
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY'; 
+import mapboxgl from 'mapbox-gl'; // Import from module
+import { CONFIG } from '../config';
 
 // Interface for Visit History
 interface VisitHistoryItem {
@@ -31,18 +30,8 @@ interface SupervisorLoc {
     direction?: { lat: number, lng: number };
 }
 
-// Interface for Gemini Maps Grounding Data simulation
-interface GroundingData {
-    place: string;
-    address: string;
-    rating: number;
-    userRatingsTotal: number;
-    uri: string;
-    snippet: string;
-}
-
 const SupervisorTracking = () => {
-    // Initial State - Coordinates centered on CDMX for demo
+    // Initial State - Coordinates centered on CDMX
     const [supervisors, setSupervisors] = useState<SupervisorLoc[]>([
         { 
             id: '1', 
@@ -96,65 +85,26 @@ const SupervisorTracking = () => {
     const [showRoutes, setShowRoutes] = useState(true); 
     const [selectedSup, setSelectedSup] = useState<string | null>(null);
     
-    // Maps & AI Grounding State
-    const mapRef = useRef<HTMLDivElement>(null);
-    const [mapInstance, setMapInstance] = useState<any>(null);
-    const [mapError, setMapError] = useState<string | null>(null);
-    const markersRef = useRef<{[key: string]: any}>({});
-    const polylinesRef = useRef<{[key: string]: any}>({});
+    // Map State
+    const mapContainer = useRef<HTMLDivElement>(null);
+    const map = useRef<mapboxgl.Map | null>(null);
+    const markersRef = useRef<{[key: string]: mapboxgl.Marker}>({});
     
-    const [groundingData, setGroundingData] = useState<GroundingData | null>(null);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-    // 1. Load Google Maps Script
+    // 1. Initialize Mapbox
     useEffect(() => {
-        const loadMapScript = () => {
-            if ((window as any).google?.maps) {
-                initMap();
-                return;
-            }
+        if (map.current) return; // initialize map only once
+        
+        mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
+        
+        if (mapContainer.current) {
+            map.current = new mapboxgl.Map({
+                container: mapContainer.current,
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [-99.1332, 19.4326], // [lng, lat]
+                zoom: 12
+            });
 
-            (window as any).gm_authFailure = () => {
-                setMapError("Error de autenticación: API Key inválida.");
-                console.error("Google Maps API Key Invalid");
-            };
-
-            const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,marker`;
-            script.async = true;
-            script.defer = true;
-            script.onload = initMap;
-            script.onerror = () => setMapError("Error al cargar el script de Google Maps.");
-            document.head.appendChild(script);
-        };
-
-        const initMap = () => {
-            if (!mapRef.current || !(window as any).google) return;
-            
-            try {
-                const map = new (window as any).google.maps.Map(mapRef.current, {
-                    center: { lat: 19.4326, lng: -99.1332 }, // CDMX Center
-                    zoom: 13,
-                    styles: [
-                        { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }
-                    ],
-                    disableDefaultUI: false,
-                    zoomControl: true,
-                    mapTypeControl: false,
-                    streetViewControl: false,
-                    fullscreenControl: false
-                });
-                setMapInstance(map);
-            } catch (e) {
-                console.error("Map initialization error", e);
-                setMapError("Error al inicializar el mapa.");
-            }
-        };
-
-        if (GOOGLE_MAPS_API_KEY === 'YOUR_GOOGLE_MAPS_API_KEY') {
-            setMapError("API Key no configurada.");
-        } else {
-            loadMapScript();
+            map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
         }
     }, []);
 
@@ -165,14 +115,11 @@ const SupervisorTracking = () => {
                 if (sup.status === 'inactive') return sup;
                 
                 // Store current pos in history
-                // We limit history to 100 points for performance
-                const newHistory = [...sup.routeHistory, { lat: sup.lat, lng: sup.lng }].slice(-100);
+                const newHistory = [...sup.routeHistory, { lat: sup.lat, lng: sup.lng }].slice(-50);
 
                 // Use predefined direction for smoother "route" simulation
                 const dirLat = sup.direction?.lat || 0.0001;
                 const dirLng = sup.direction?.lng || 0.0001;
-
-                // Add slight randomness to simulate real road variations
                 const jitter = (Math.random() - 0.5) * 0.00005;
 
                 return {
@@ -183,126 +130,107 @@ const SupervisorTracking = () => {
                     routeHistory: newHistory
                 };
             }));
-        }, 2000); // Update every 2 seconds
+        }, 2000); 
 
         return () => clearInterval(interval);
     }, []);
 
-    // 3. Update Markers & Polylines on Map
+    // 3. Update Markers & Routes on Mapbox
     useEffect(() => {
-        if (!mapInstance || !(window as any).google) return;
+        if (!map.current) return;
 
         supervisors.forEach(sup => {
-            const position = { lat: sup.lat, lng: sup.lng };
-
             // MARKERS
-            if (markersRef.current[sup.id]) {
-                // Update existing marker
-                markersRef.current[sup.id].setPosition(position);
-                
-                // Update icon based on state
-                // Using HTTPS icons to avoid mixed content warnings
-                const iconUrl = sup.id === selectedSup 
-                    ? "https://maps.google.com/mapfiles/ms/icons/blue-dot.png" 
-                    : sup.status === 'active' 
-                        ? "https://maps.google.com/mapfiles/ms/icons/green-dot.png" 
-                        : "https://maps.google.com/mapfiles/ms/icons/red-dot.png";
-                markersRef.current[sup.id].setIcon(iconUrl);
-                
-                // Z-Index update: selected on top
-                markersRef.current[sup.id].setZIndex(sup.id === selectedSup ? 1000 : 1);
+            if (!markersRef.current[sup.id]) {
+                // Create custom marker element
+                const el = document.createElement('div');
+                el.className = 'marker';
+                el.style.backgroundImage = `url(${sup.avatar})`;
+                el.style.width = '40px';
+                el.style.height = '40px';
+                el.style.backgroundSize = 'cover';
+                el.style.borderRadius = '50%';
+                el.style.border = `3px solid ${sup.status === 'active' ? '#22c55e' : '#94a3b8'}`;
+                el.style.cursor = 'pointer';
 
-            } else {
-                // Create new marker
-                const marker = new (window as any).google.maps.Marker({
-                    position,
-                    map: mapInstance,
-                    title: sup.name,
-                    animation: (window as any).google.maps.Animation.DROP,
-                    icon: sup.status === 'active' 
-                        ? "https://maps.google.com/mapfiles/ms/icons/green-dot.png" 
-                        : "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
-                });
-                
-                // Click listener
-                marker.addListener('click', () => {
-                    setSelectedSup(sup.id);
-                    mapInstance.panTo(position);
-                    mapInstance.setZoom(15);
+                // Add popup
+                const popup = new mapboxgl.Popup({ offset: 25 }).setText(sup.name);
+
+                // Add to map
+                const marker = new mapboxgl.Marker(el)
+                    .setLngLat([sup.lng, sup.lat])
+                    .setPopup(popup)
+                    .addTo(map.current!);
+
+                el.addEventListener('click', () => {
+                     setSelectedSup(sup.id);
+                     map.current?.flyTo({
+                        center: [sup.lng, sup.lat],
+                        zoom: 14
+                     });
                 });
 
                 markersRef.current[sup.id] = marker;
+            } else {
+                // Update position
+                markersRef.current[sup.id].setLngLat([sup.lng, sup.lat]);
+                
+                // Update styling based on selection
+                const el = markersRef.current[sup.id].getElement();
+                el.style.border = sup.id === selectedSup 
+                    ? '3px solid #137fec' 
+                    : `3px solid ${sup.status === 'active' ? '#22c55e' : '#94a3b8'}`;
+                el.style.zIndex = sup.id === selectedSup ? '10' : '1';
+                el.style.transform = sup.id === selectedSup ? `${el.style.transform} scale(1.2)` : el.style.transform;
             }
 
-            // POLYLINES (Route History)
-            if (showRoutes && sup.routeHistory.length > 0) {
-                // Connect history + current position to close the gap
-                const path = [...sup.routeHistory, position];
-                
-                if (polylinesRef.current[sup.id]) {
-                    polylinesRef.current[sup.id].setPath(path);
-                    polylinesRef.current[sup.id].setMap(mapInstance);
-                    // Update stroke color if selected
-                    polylinesRef.current[sup.id].setOptions({
-                        strokeColor: sup.id === selectedSup ? '#137fec' : (sup.status === 'active' ? '#22c55e' : '#94a3b8'),
-                        strokeWeight: sup.id === selectedSup ? 5 : 3,
-                        zIndex: sup.id === selectedSup ? 100 : 1
-                    });
+            // ROUTES (Polylines)
+            if (showRoutes && sup.routeHistory.length > 1) {
+                const sourceId = `route-${sup.id}`;
+                const coordinates = [...sup.routeHistory.map(h => [h.lng, h.lat]), [sup.lng, sup.lat]];
+
+                const geoJson: any = {
+                    type: 'Feature',
+                    properties: {},
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: coordinates
+                    }
+                };
+
+                if (map.current!.getSource(sourceId)) {
+                    (map.current!.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(geoJson);
                 } else {
-                    const polyline = new (window as any).google.maps.Polyline({
-                        path,
-                        geodesic: true,
-                        strokeColor: sup.id === selectedSup ? '#137fec' : '#22c55e',
-                        strokeOpacity: 0.7,
-                        strokeWeight: 3,
-                        map: mapInstance
+                    map.current!.addSource(sourceId, {
+                        type: 'geojson',
+                        data: geoJson
                     });
-                    polylinesRef.current[sup.id] = polyline;
+                    map.current!.addLayer({
+                        id: sourceId,
+                        type: 'line',
+                        source: sourceId,
+                        layout: {
+                            'line-join': 'round',
+                            'line-cap': 'round'
+                        },
+                        paint: {
+                            'line-color': sup.id === selectedSup ? '#137fec' : '#22c55e',
+                            'line-width': 4,
+                            'line-opacity': 0.7
+                        }
+                    });
                 }
-            } else if (!showRoutes && polylinesRef.current[sup.id]) {
-                polylinesRef.current[sup.id].setMap(null); // Hide
+            } else {
+                 // Clean up layer if hidden
+                 const sourceId = `route-${sup.id}`;
+                 if (map.current!.getLayer(sourceId)) map.current!.removeLayer(sourceId);
+                 if (map.current!.getSource(sourceId)) map.current!.removeSource(sourceId);
             }
         });
-
-    }, [supervisors, mapInstance, selectedSup, showRoutes]);
-
-    // 4. Focus Map when selection changes via sidebar
-    useEffect(() => {
-        if (selectedSup && mapInstance && markersRef.current[selectedSup]) {
-            const marker = markersRef.current[selectedSup];
-            mapInstance.panTo(marker.getPosition());
-            mapInstance.setZoom(16);
-            
-            // Clear grounding when changing selection
-            setGroundingData(null);
-            setIsAnalyzing(false);
-        }
-    }, [selectedSup, mapInstance]);
-
-    const handleAnalyzeLocation = (sup: SupervisorLoc) => {
-        setIsAnalyzing(true);
-        setGroundingData(null);
-
-        // --- SIMULATION OF GEMINI 2.5 FLASH API CALL ---
-        setTimeout(() => {
-            const mockPlaces = [
-                {
-                    place: "Ubicación Detectada",
-                    address: `${sup.lat.toFixed(4)}, ${sup.lng.toFixed(4)} (Simulación)`,
-                    rating: 4.8,
-                    userRatingsTotal: 342,
-                    uri: `https://www.google.com/maps/search/?api=1&query=${sup.lat},${sup.lng}`,
-                    snippet: "Área comercial de alta densidad. Próxima a zona bancaria y restaurantes."
-                }
-            ];
-            
-            setGroundingData(mockPlaces[0]);
-            setIsAnalyzing(false);
-        }, 1500);
-    };
+    }, [supervisors, selectedSup, showRoutes]);
 
     const handleLinkDevice = () => {
-        const id = prompt("Ingrese el ID del dispositivo GPS (Google Maps Integration):");
+        const id = prompt("Ingrese el ID del dispositivo GPS (Integration):");
         if (id) {
             alert(`Dispositivo ${id} vinculado exitosamente a la red de monitoreo.`);
         }
@@ -353,7 +281,7 @@ const SupervisorTracking = () => {
                         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
                             <div>
                                 <h2 className="font-bold text-slate-900 dark:text-white">Supervisores</h2>
-                                <p className="text-xs text-slate-500">Google Maps Data Integration</p>
+                                <p className="text-xs text-slate-500">Mapbox Integration</p>
                             </div>
                             <button onClick={handleLinkDevice} className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-colors" title="Vincular GPS">
                                 <span className="material-symbols-outlined">add_link</span>
@@ -441,120 +369,18 @@ const SupervisorTracking = () => {
                      
                      {/* Map Area */}
                      <div className="flex-1 relative bg-[#e5e7eb] dark:bg-[#101922] overflow-hidden">
-                         {/* Map Container */}
-                         <div ref={mapRef} className="absolute inset-0 w-full h-full z-0" />
+                         <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
                          
-                         {/* Map Error Overlay */}
-                         {mapError && (
-                             <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-900 z-10 p-8 text-center bg-opacity-90 dark:bg-opacity-90 backdrop-blur-sm">
-                                <div className="max-w-md">
-                                    <span className="material-symbols-outlined text-5xl text-red-500 mb-4">map_off</span>
-                                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Mapa no disponible</h3>
-                                    <div className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 p-3 rounded-lg mb-6 border border-red-200 dark:border-red-800 text-sm font-medium">
-                                        {mapError}
-                                    </div>
-                                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl text-left text-sm border border-slate-200 dark:border-slate-700 shadow-sm">
-                                        <p className="mb-3 font-bold text-slate-700 dark:text-slate-300">Pasos para solucionar:</p>
-                                        <ol className="list-decimal pl-5 space-y-2 text-slate-600 dark:text-slate-400">
-                                            <li>Abre el archivo <code>pages/SupervisorTracking.tsx</code>.</li>
-                                            <li>Busca la constante <code>GOOGLE_MAPS_API_KEY</code>.</li>
-                                            <li>Reemplaza el valor <code>'YOUR_GOOGLE_MAPS_API_KEY'</code> con tu clave válida de Google Cloud Console.</li>
-                                            <li>Asegúrate de que la API "Maps JavaScript API" esté habilitada en tu proyecto de Google Cloud.</li>
-                                        </ol>
-                                        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 text-center">
-                                            <a href="https://developers.google.com/maps/documentation/javascript/get-api-key" target="_blank" rel="noreferrer" className="text-primary hover:underline text-xs flex items-center justify-center gap-1">
-                                                Obtener API Key
-                                                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                             </div>
-                         )}
-                         
-                         {/* Google Maps Controls Overlay */}
-                         {!mapError && (
-                             <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
-                                 <button 
-                                    onClick={() => mapInstance?.panTo({ lat: 19.4326, lng: -99.1332 })}
-                                    className="size-10 bg-white dark:bg-surface-dark shadow-md rounded flex items-center justify-center hover:bg-slate-50 border border-slate-200 dark:border-slate-700"
-                                    title="Centrar CDMX"
-                                 >
-                                     <span className="material-symbols-outlined text-slate-600 dark:text-white">my_location</span>
-                                 </button>
-                             </div>
-                         )}
-
-                         {/* Gemini AI Grounding Panel - Shows when a user is selected */}
-                         {selectedSup && !mapError && (
-                             <div className="absolute top-4 right-4 md:right-auto md:left-4 z-30 w-72 bg-white dark:bg-surface-dark rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in slide-in-from-top-4">
-                                 <div className="p-3 bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-between text-white">
-                                     <div className="flex items-center gap-2">
-                                         <span className="material-symbols-outlined text-sm">psychology</span>
-                                         <span className="font-bold text-xs uppercase tracking-wider">Gemini 2.5 Analysis</span>
-                                     </div>
-                                     <button onClick={() => setSelectedSup(null)} className="hover:bg-white/20 rounded p-0.5">
-                                         <span className="material-symbols-outlined text-sm">close</span>
-                                     </button>
-                                 </div>
-                                 
-                                 <div className="p-4">
-                                     {!groundingData && !isAnalyzing && (
-                                         <div className="text-center py-4">
-                                             <p className="text-sm text-slate-500 mb-3">Obtén datos contextuales de Google Maps para esta ubicación.</p>
-                                             <button 
-                                                onClick={() => handleAnalyzeLocation(supervisors.find(s => s.id === selectedSup)!)}
-                                                className="w-full py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 rounded-lg text-sm font-bold hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
-                                             >
-                                                 <span className="material-symbols-outlined text-[18px]">explore</span>
-                                                 Analizar Ubicación
-                                             </button>
-                                         </div>
-                                     )}
-
-                                     {isAnalyzing && (
-                                         <div className="py-6 flex flex-col items-center gap-3">
-                                             <div className="size-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                                             <p className="text-xs text-indigo-600 font-medium animate-pulse">Consultando Google Maps...</p>
-                                         </div>
-                                     )}
-
-                                     {groundingData && (
-                                         <div className="space-y-3">
-                                             <div>
-                                                 <h4 className="font-bold text-slate-900 dark:text-white text-sm leading-tight mb-1">{groundingData.place}</h4>
-                                                 <p className="text-xs text-slate-500 dark:text-slate-400">{groundingData.address}</p>
-                                             </div>
-                                             
-                                             <div className="flex items-center gap-2">
-                                                 <div className="flex text-amber-400 text-[12px]">
-                                                     {[1,2,3,4,5].map(i => (
-                                                         <span key={i} className="material-symbols-outlined fill text-[14px]">
-                                                             {i <= Math.round(groundingData.rating) ? 'star' : 'star_border'}
-                                                         </span>
-                                                     ))}
-                                                 </div>
-                                                 <span className="text-xs text-slate-600 dark:text-slate-300 font-bold">{groundingData.rating}</span>
-                                                 <span className="text-[10px] text-slate-400">({groundingData.userRatingsTotal} reseñas)</span>
-                                             </div>
-
-                                             <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-100 dark:border-slate-700">
-                                                 <p className="text-xs text-slate-600 dark:text-slate-300 italic">"{groundingData.snippet}"</p>
-                                             </div>
-
-                                             <a href={groundingData.uri} target="_blank" rel="noreferrer" className="block w-full py-1.5 text-center bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50">
-                                                 Abrir en Google Maps
-                                             </a>
-                                             
-                                             <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                                                 <span className="text-[10px] text-slate-400">Fuente: Google Maps Grounding</span>
-                                                 <span className="material-symbols-outlined text-slate-300 text-sm">google</span>
-                                             </div>
-                                         </div>
-                                     )}
-                                 </div>
-                             </div>
-                         )}
+                         {/* Map Controls Overlay */}
+                         <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
+                             <button 
+                                onClick={() => map.current?.flyTo({ center: [-99.1332, 19.4326], zoom: 12 })}
+                                className="size-10 bg-white dark:bg-surface-dark shadow-md rounded flex items-center justify-center hover:bg-slate-50 border border-slate-200 dark:border-slate-700"
+                                title="Centrar CDMX"
+                             >
+                                 <span className="material-symbols-outlined text-slate-600 dark:text-white">my_location</span>
+                             </button>
+                         </div>
                      </div>
                 </div>
             </main>

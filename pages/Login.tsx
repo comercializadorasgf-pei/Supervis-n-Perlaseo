@@ -19,7 +19,7 @@ const Login = () => {
         const potentialUser = users.find(u => u.email === email);
         
         if (potentialUser && potentialUser.verified === false) {
-             setError('Debes verificar tu correo electrónico antes de ingresar. Revisa tu bandeja de entrada.');
+             setError('Debes verificar tu correo electrónico antes de ingresar.');
              return;
         }
 
@@ -44,9 +44,16 @@ const Login = () => {
                 </div>
 
                 {error && (
-                    <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm border border-red-200 flex items-start gap-2">
-                        <span className="material-symbols-outlined text-lg mt-0.5">error</span>
-                        <span>{error}</span>
+                    <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm border border-red-200 flex flex-col items-start gap-1">
+                        <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-lg">error</span>
+                            <span>{error}</span>
+                        </div>
+                        {error.includes('verificar') && (
+                            <Link to="/verify-email" className="text-red-800 font-bold underline ml-6 hover:text-red-950">
+                                Ir a Verificar Cuenta
+                            </Link>
+                        )}
                     </div>
                 )}
 
@@ -82,6 +89,12 @@ const Login = () => {
                     >
                         Ingresar
                     </button>
+                    
+                    <div className="pt-4 text-center border-t border-slate-100 dark:border-slate-800">
+                        <p className="text-sm text-slate-500">
+                            ¿Necesitas activar tu cuenta? <Link to="/verify-email" className="text-primary font-bold hover:underline">Verificar Aquí</Link>
+                        </p>
+                    </div>
                 </form>
             </div>
         </div>

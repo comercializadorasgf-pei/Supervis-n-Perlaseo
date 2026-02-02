@@ -12,6 +12,7 @@ import PerformVisit from './pages/PerformVisit';
 import VisitDetails from './pages/VisitDetails';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
+import VerifyEmail from './pages/VerifyEmail';
 import Profile from './pages/Profile';
 import SupervisorsManagement from './pages/SupervisorsManagement';
 import Inventory from './pages/Inventory';
@@ -61,6 +62,7 @@ const App = () => {
                 <Routes>
                     <Route path="/login" element={<Login />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/verify-email" element={<VerifyEmail />} />
                     
                     {/* Protected Routes */}
                     <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
