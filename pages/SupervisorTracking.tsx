@@ -84,6 +84,7 @@ const SupervisorTracking = () => {
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [showRoutes, setShowRoutes] = useState(true); 
     const [selectedSup, setSelectedSup] = useState<string | null>(null);
+    const [mapError, setMapError] = useState<string | null>(null);
     
     // Map State
     const mapContainer = useRef<HTMLDivElement>(null);
@@ -99,21 +100,30 @@ const SupervisorTracking = () => {
                 mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
             } else {
                 console.warn("Mapbox Token missing in config.");
+                setMapError("Configuración de mapa incompleta (Token faltante).");
                 return;
             }
             
             if (mapContainer.current) {
-                map.current = new mapboxgl.Map({
+                const mapInstance = new mapboxgl.Map({
                     container: mapContainer.current,
                     style: 'mapbox://styles/mapbox/streets-v12',
                     center: [-99.1332, 19.4326], // [lng, lat]
                     zoom: 12
                 });
 
-                map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+                mapInstance.addControl(new mapboxgl.NavigationControl(), 'top-right');
+                
+                // Add error listener
+                mapInstance.on('error', (e) => {
+                    console.error("Mapbox runtime error:", e);
+                });
+
+                map.current = mapInstance;
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error("Error initializing Mapbox:", e);
+            setMapError("No se pudo cargar el mapa. Es posible que el entorno de seguridad bloquee el acceso.");
         }
     }, []);
 
@@ -146,69 +156,69 @@ const SupervisorTracking = () => {
 
     // 3. Update Markers & Routes on Mapbox
     useEffect(() => {
-        if (!map.current) return;
+        if (!map.current || mapError) return;
 
-        supervisors.forEach(sup => {
-            // MARKERS
-            if (!markersRef.current[sup.id]) {
-                // Create custom marker element
-                const el = document.createElement('div');
-                el.className = 'marker';
-                el.style.backgroundImage = `url(${sup.avatar})`;
-                el.style.width = '40px';
-                el.style.height = '40px';
-                el.style.backgroundSize = 'cover';
-                el.style.borderRadius = '50%';
-                el.style.border = `3px solid ${sup.status === 'active' ? '#22c55e' : '#94a3b8'}`;
-                el.style.cursor = 'pointer';
+        try {
+            supervisors.forEach(sup => {
+                // MARKERS
+                if (!markersRef.current[sup.id]) {
+                    // Create custom marker element
+                    const el = document.createElement('div');
+                    el.className = 'marker';
+                    el.style.backgroundImage = `url(${sup.avatar})`;
+                    el.style.width = '40px';
+                    el.style.height = '40px';
+                    el.style.backgroundSize = 'cover';
+                    el.style.borderRadius = '50%';
+                    el.style.border = `3px solid ${sup.status === 'active' ? '#22c55e' : '#94a3b8'}`;
+                    el.style.cursor = 'pointer';
 
-                // Add popup
-                const popup = new mapboxgl.Popup({ offset: 25 }).setText(sup.name);
+                    // Add popup
+                    const popup = new mapboxgl.Popup({ offset: 25 }).setText(sup.name);
 
-                // Add to map
-                const marker = new mapboxgl.Marker(el)
-                    .setLngLat([sup.lng, sup.lat])
-                    .setPopup(popup)
-                    .addTo(map.current!);
+                    // Add to map
+                    const marker = new mapboxgl.Marker(el)
+                        .setLngLat([sup.lng, sup.lat])
+                        .setPopup(popup)
+                        .addTo(map.current!);
 
-                el.addEventListener('click', () => {
-                     setSelectedSup(sup.id);
-                     map.current?.flyTo({
-                        center: [sup.lng, sup.lat],
-                        zoom: 14
-                     });
-                });
+                    el.addEventListener('click', () => {
+                        setSelectedSup(sup.id);
+                        map.current?.flyTo({
+                            center: [sup.lng, sup.lat],
+                            zoom: 14
+                        });
+                    });
 
-                markersRef.current[sup.id] = marker;
-            } else {
-                // Update position
-                markersRef.current[sup.id].setLngLat([sup.lng, sup.lat]);
-                
-                // Update styling based on selection
-                const el = markersRef.current[sup.id].getElement();
-                el.style.border = sup.id === selectedSup 
-                    ? '3px solid #137fec' 
-                    : `3px solid ${sup.status === 'active' ? '#22c55e' : '#94a3b8'}`;
-                el.style.zIndex = sup.id === selectedSup ? '10' : '1';
-                el.style.transform = sup.id === selectedSup ? `${el.style.transform} scale(1.2)` : el.style.transform;
-            }
+                    markersRef.current[sup.id] = marker;
+                } else {
+                    // Update position
+                    markersRef.current[sup.id].setLngLat([sup.lng, sup.lat]);
+                    
+                    // Update styling based on selection
+                    const el = markersRef.current[sup.id].getElement();
+                    el.style.border = sup.id === selectedSup 
+                        ? '3px solid #137fec' 
+                        : `3px solid ${sup.status === 'active' ? '#22c55e' : '#94a3b8'}`;
+                    el.style.zIndex = sup.id === selectedSup ? '10' : '1';
+                    el.style.transform = sup.id === selectedSup ? `${el.style.transform} scale(1.2)` : el.style.transform;
+                }
 
-            // ROUTES (Polylines)
-            if (showRoutes && sup.routeHistory.length > 1) {
-                const sourceId = `route-${sup.id}`;
-                const coordinates = [...sup.routeHistory.map(h => [h.lng, h.lat]), [sup.lng, sup.lat]];
+                // ROUTES (Polylines)
+                if (showRoutes && sup.routeHistory.length > 1) {
+                    const sourceId = `route-${sup.id}`;
+                    const coordinates = [...sup.routeHistory.map(h => [h.lng, h.lat]), [sup.lng, sup.lat]];
 
-                const geoJson: any = {
-                    type: 'Feature',
-                    properties: {},
-                    geometry: {
-                        type: 'LineString',
-                        coordinates: coordinates
-                    }
-                };
+                    const geoJson: any = {
+                        type: 'Feature',
+                        properties: {},
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: coordinates
+                        }
+                    };
 
-                // Check if map source exists securely
-                try {
+                    // Check if map source exists securely
                     if (map.current?.getSource(sourceId)) {
                         (map.current.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(geoJson);
                     } else {
@@ -231,17 +241,17 @@ const SupervisorTracking = () => {
                             }
                         });
                     }
-                } catch(err) {
-                    console.error("Error updating route layer", err);
+                } else {
+                    // Clean up layer if hidden
+                    const sourceId = `route-${sup.id}`;
+                    if (map.current?.getLayer(sourceId)) map.current.removeLayer(sourceId);
+                    if (map.current?.getSource(sourceId)) map.current.removeSource(sourceId);
                 }
-            } else {
-                 // Clean up layer if hidden
-                 const sourceId = `route-${sup.id}`;
-                 if (map.current?.getLayer(sourceId)) map.current.removeLayer(sourceId);
-                 if (map.current?.getSource(sourceId)) map.current.removeSource(sourceId);
-            }
-        });
-    }, [supervisors, selectedSup, showRoutes]);
+            });
+        } catch (err) {
+            console.error("Error updating map markers:", err);
+        }
+    }, [supervisors, selectedSup, showRoutes, mapError]);
 
     const handleLinkDevice = () => {
         const id = prompt("Ingrese el ID del dispositivo GPS (Integration):");
@@ -383,18 +393,29 @@ const SupervisorTracking = () => {
                      
                      {/* Map Area */}
                      <div className="flex-1 relative bg-[#e5e7eb] dark:bg-[#101922] overflow-hidden">
-                         <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
+                         {mapError ? (
+                             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-8 text-center z-30 bg-slate-100 dark:bg-surface-dark">
+                                 <span className="material-symbols-outlined text-5xl mb-3 text-slate-400">map_off</span>
+                                 <p className="font-bold text-lg text-slate-700 dark:text-white">El mapa no está disponible</p>
+                                 <p className="text-sm opacity-70 mt-1 max-w-md">{mapError}</p>
+                                 <p className="text-xs mt-4 text-slate-400">Esto suele ocurrir en entornos de desarrollo restringidos (sandboxes) debido a políticas de seguridad.</p>
+                             </div>
+                         ) : (
+                             <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
+                         )}
                          
                          {/* Map Controls Overlay */}
-                         <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
-                             <button 
-                                onClick={() => map.current?.flyTo({ center: [-99.1332, 19.4326], zoom: 12 })}
-                                className="size-10 bg-white dark:bg-surface-dark shadow-md rounded flex items-center justify-center hover:bg-slate-50 border border-slate-200 dark:border-slate-700"
-                                title="Centrar CDMX"
-                             >
-                                 <span className="material-symbols-outlined text-slate-600 dark:text-white">my_location</span>
-                             </button>
-                         </div>
+                         {!mapError && (
+                             <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
+                                 <button 
+                                    onClick={() => map.current?.flyTo({ center: [-99.1332, 19.4326], zoom: 12 })}
+                                    className="size-10 bg-white dark:bg-surface-dark shadow-md rounded flex items-center justify-center hover:bg-slate-50 border border-slate-200 dark:border-slate-700"
+                                    title="Centrar CDMX"
+                                 >
+                                     <span className="material-symbols-outlined text-slate-600 dark:text-white">my_location</span>
+                                 </button>
+                             </div>
+                         )}
                      </div>
                 </div>
             </main>

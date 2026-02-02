@@ -6,6 +6,7 @@ import { StorageService } from '../services/storage';
 import { Visit, Client, User, InventoryItem } from '../types';
 import VisitPreviewModal from '../components/VisitPreviewModal';
 import VisitActionModal from '../components/VisitActionModal';
+import WelcomeActivityModal from '../components/WelcomeActivityModal';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ChartData {
@@ -44,6 +45,18 @@ const Dashboard = () => {
     // Action Modal State
     const [selectedActionVisit, setSelectedActionVisit] = useState<Visit | null>(null);
     const [isActionOpen, setIsActionOpen] = useState(false);
+
+    // Welcome Modal State
+    const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+
+    useEffect(() => {
+        // Check session storage to show welcome modal only once per session
+        const hasSeenWelcome = sessionStorage.getItem('hasSeenWelcome');
+        if (!hasSeenWelcome && user) {
+            setIsWelcomeModalOpen(true);
+            sessionStorage.setItem('hasSeenWelcome', 'true');
+        }
+    }, [user]);
 
     const loadData = () => {
         const visits = StorageService.getVisits();
@@ -495,6 +508,17 @@ const Dashboard = () => {
                     onClose={() => setIsActionOpen(false)}
                     onUpdate={loadData}
                 />
+
+                {/* Welcome Activity Modal */}
+                {user && (
+                    <WelcomeActivityModal 
+                        isOpen={isWelcomeModalOpen} 
+                        onClose={() => setIsWelcomeModalOpen(false)} 
+                        userName={user.name}
+                        userId={user.id}
+                        role={user.role}
+                    />
+                )}
             </main>
         </div>
     );

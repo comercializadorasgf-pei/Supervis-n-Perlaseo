@@ -33,7 +33,20 @@ const App = () => {
         const timer = setTimeout(() => {
             setIsLoading(false);
         }, 2200);
-        return () => clearTimeout(timer);
+
+        // Prevent accidental close
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            // Standard way to trigger browser confirmation dialog
+            e.preventDefault(); 
+            e.returnValue = ''; 
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
     }, []);
 
     if (isLoading) {

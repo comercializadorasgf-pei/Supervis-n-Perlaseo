@@ -26,7 +26,8 @@ const CreateVisit = () => {
 
     // Date States for Manual Mode
     const [selectedDates, setSelectedDates] = useState<string[]>([new Date().toISOString().split('T')[0]]); // Default today
-    
+    const [manualDateInput, setManualDateInput] = useState(''); // Control input state
+
     // Recurrence State
     const [recurrence, setRecurrence] = useState({
         startDate: new Date().toISOString().split('T')[0],
@@ -71,10 +72,12 @@ const CreateVisit = () => {
 
     const handleAddManualDate = (e: React.ChangeEvent<HTMLInputElement>) => {
         const date = e.target.value;
+        setManualDateInput(date); // Update visual input
         if (date && !selectedDates.includes(date)) {
             // Sort dates chronologically
             const newDates = [...selectedDates, date].sort();
             setSelectedDates(newDates);
+            // Optional: clear input after add if desired, but keeping it allows user to see what they just picked
         }
     };
 
@@ -158,22 +161,32 @@ const CreateVisit = () => {
         // Determine Final Dates
         let datesToCreate: string[] = [];
         if (mode === 'multiple') {
-            datesToCreate = selectedDates;
+            datesToCreate = [...selectedDates]; // Create a copy
         } else {
             datesToCreate = calculateRecurrenceDates();
         }
 
         if (datesToCreate.length === 0) {
-            alert("Debe seleccionar al menos una fecha válida.");
+            alert("Error: Debe seleccionar al menos una fecha válida para agendar.");
             return;
         }
 
-        if(!confirm(`Se generarán ${datesToCreate.length} visitas para ${clientName}. ¿Continuar?`)) return;
+        // Detailed Confirmation
+        const confirmationMsg = `Resumen de Programación:\n` +
+            `- Cliente: ${clientName}\n` +
+            `- Supervisor: ${selectedSupervisor.name}\n` +
+            `- Tipo: ${formData.type}\n` +
+            `- Total de Visitas: ${datesToCreate.length}\n\n` +
+            `Fechas: ${datesToCreate.slice(0, 3).join(', ')}${datesToCreate.length > 3 ? '...' : ''}\n\n` +
+            `¿Desea confirmar y guardar estas visitas?`;
+
+        if(!confirm(confirmationMsg)) return;
 
         // Batch Creation
+        let successCount = 0;
         datesToCreate.forEach((dateStr, index) => {
             const newVisit: Visit = {
-                id: (Date.now() + index).toString(), // Ensure unique IDs
+                id: (Date.now() + index + Math.floor(Math.random() * 1000)).toString(), // Ensure unique IDs
                 clientId: clientId,
                 clientName: clientName,
                 supervisorId: selectedSupervisor.id,
@@ -187,8 +200,11 @@ const CreateVisit = () => {
                 hasReport: false
             };
             StorageService.addVisit(newVisit);
+            successCount++;
         });
         
+        alert(`¡Éxito! Se han agendado correctamente ${successCount} visitas.`);
+
         if (user?.role === 'developer') {
             navigate('/');
         } else {
@@ -311,8 +327,8 @@ const CreateVisit = () => {
                                                 <label className="block text-xs text-slate-500 mb-1">Agregar Fecha</label>
                                                 <input 
                                                     type="date" 
+                                                    value={manualDateInput}
                                                     onChange={handleAddManualDate}
-                                                    // Reset value after select isn't easy with simple onChange, relying on user interaction
                                                     className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none" 
                                                 />
                                             </div>
@@ -332,7 +348,7 @@ const CreateVisit = () => {
                                                 </div>
                                             ))}
                                         </div>
-                                        <p className="text-right text-xs text-slate-500 font-bold">Total Visitas: {selectedDates.length}</p>
+                                        <p className="text-right text-xs text-slate-500 font-bold">Total Visitas a Programar: {selectedDates.length}</p>
                                     </div>
                                 )}
 
@@ -446,7 +462,7 @@ const CreateVisit = () => {
                             </Link>
                             <button type="submit" className="px-6 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white font-bold shadow-lg shadow-primary/20 flex items-center gap-2">
                                 <span className="material-symbols-outlined">calendar_add_on</span>
-                                Generar {mode === 'multiple' ? selectedDates.length : calculatedDatesPreview.length} Visitas
+                                Confirmar y Agendar {mode === 'multiple' ? selectedDates.length : calculatedDatesPreview.length} Visitas
                             </button>
                         </div>
                     </form>
