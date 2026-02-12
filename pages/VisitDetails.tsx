@@ -11,20 +11,34 @@ const VisitDetails = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const reportRef = useRef<HTMLDivElement>(null);
 
+    // Current time for the generation legend
+    const [generationTime, setGenerationTime] = useState('');
+
     useEffect(() => {
         if (visitId) {
             const data = StorageService.getVisitById(visitId);
             if (data) setVisit(data);
         }
+        // Set initial time
+        updateTime();
     }, [visitId]);
 
+    const updateTime = () => {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        setGenerationTime(`${dateStr} ${timeStr}`);
+    };
+
     const handlePrint = () => {
-        window.print();
+        updateTime();
+        setTimeout(() => window.print(), 100);
     };
 
     const generatePDFBlob = async (): Promise<Blob | null> => {
         if (!reportRef.current) return null;
         
+        updateTime();
         setIsGenerating(true);
         // Esperar un momento para que el estado se actualice y muestre elementos ocultos si es necesario
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -43,21 +57,16 @@ const VisitDetails = () => {
             const pdfHeight = pdf.internal.pageSize.getHeight();
             const imgWidth = canvas.width;
             const imgHeight = canvas.height;
-            const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
             
-            // Ajustar altura proporcionalmente, manteniendo márgenes mínimos
-            const imgX = 0;
-            const imgY = 0;
-            const finalWidth = pdfWidth; 
+            // Ajustar altura proporcionalmente
             const finalHeight = (imgHeight * pdfWidth) / imgWidth;
 
             // Si es muy largo, jspdf corta, para este ejemplo simple asumimos una página o escalado
-            // Para multipágina se requeriría lógica más compleja de split
             if (finalHeight > pdfHeight) {
                 // Ajustar para que quepa en una página (shrink to fit)
                 pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
             } else {
-                pdf.addImage(imgData, 'JPEG', 0, 0, finalWidth, finalHeight);
+                pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, finalHeight);
             }
 
             return pdf.output('blob');
@@ -86,10 +95,8 @@ const VisitDetails = () => {
     };
 
     const handleShare = async () => {
-        // Opción 1: Compartir enlace si no soporta archivos
         const shareUrl = window.location.href;
         
-        // Opción 2: Generar y compartir archivo
         if (navigator.canShare && navigator.share) {
             const blob = await generatePDFBlob();
             if (blob && visit) {
@@ -109,16 +116,14 @@ const VisitDetails = () => {
             }
         }
 
-        // Fallback al portapapeles / URL
         try {
             await navigator.clipboard.writeText(shareUrl);
-            alert('Enlace copiado al portapapeles (Tu dispositivo no soporta compartir archivos directamente).');
+            alert('Enlace copiado al portapapeles.');
         } catch (err) {
             alert('No se pudo compartir.');
         }
     };
 
-    // Helper to format ISO string to "DD/MM/YYYY HH:MM:SS"
     const formatDateTime = (isoString?: string) => {
         if (!isoString) return '-';
         try {
@@ -175,16 +180,17 @@ const VisitDetails = () => {
                     </header>
                  )}
 
-                {/* 
-                    Main Content Container - Ref for PDF Generation 
-                    We maintain the layout but ensure bg is white for PDF
-                */}
+                {/* Main Content Container - Ref for PDF Generation */}
                 <div ref={reportRef} className={`flex-1 p-6 md:p-10 overflow-y-auto print:p-0 print:overflow-visible ${isGenerating ? 'bg-white text-black p-8' : ''}`}>
                     
-                    {/* 
-                        Formal Header for PDF/Print 
-                        Visible ONLY when printing or isGenerating is true
-                    */}
+                    {/* Top Legend (Timestamp) */}
+                    <div className={`${isGenerating ? 'block' : 'hidden print:block'} w-full text-right mb-2`}>
+                        <p className="italic text-gray-500" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '11px' }}>
+                            El documento se generó de manera exitosa el {generationTime}
+                        </p>
+                    </div>
+
+                    {/* Formal Header for PDF/Print */}
                     <div className={`${isGenerating ? 'block mb-8' : 'hidden print:block'} mb-8 border border-black`}>
                         <div className="flex w-full">
                             <div className="w-1/4 border-r border-black p-4 flex items-center justify-center">
@@ -206,7 +212,8 @@ const VisitDetails = () => {
                                     <span className="font-bold">Versión:</span> <span>1.0.1</span>
                                 </div>
                                 <div className="flex-1 border-b border-black p-1 px-2 text-xs flex justify-between items-center">
-                                    <span className="font-bold">Fecha:</span> <span>{new Date().toLocaleDateString()}</span>
+                                    {/* Fixed Implementation Date */}
+                                    <span className="font-bold">Fecha:</span> <span>01/01/2026</span>
                                 </div>
                                 <div className="flex-1 p-1 px-2 text-xs flex justify-between items-center">
                                     <span className="font-bold">Página:</span> <span>1 de 1</span>
@@ -403,8 +410,12 @@ const VisitDetails = () => {
                                             <p>{visit.clientName}</p>
                                         </div>
                                     </div>
-                                    <div className="mt-8 text-[10px] text-center text-gray-500 border-t border-gray-300 pt-2">
-                                        <p>Documento generado electrónicamente por Supervisión Operativa App.</p>
+                                    
+                                    {/* Bottom Legend (Timestamp) */}
+                                    <div className="mt-8 text-center border-t border-gray-300 pt-2">
+                                        <p className="italic text-gray-500" style={{ fontFamily: 'Calibri, sans-serif', fontSize: '11px' }}>
+                                            El documento se generó de manera exitosa el {generationTime}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -414,6 +425,6 @@ const VisitDetails = () => {
             </main>
         </div>
     );
-}
+};
 
 export default VisitDetails;

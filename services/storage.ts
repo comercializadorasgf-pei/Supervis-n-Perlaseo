@@ -1,10 +1,46 @@
 import { User, InventoryItem, Report, Client, Visit, Message, StatusLog } from '../types';
 
-// Initial Data Seeding
+// Initial Data Seeding with Geo Coordinates
 const SEED_USERS: User[] = [
-    { id: '1', name: 'Admin Master', email: 'admin@demo.com', role: 'developer', phone: '+52 555 123 4567', position: 'Desarrollador Senior', avatarUrl: 'https://picsum.photos/id/64/200/200', verified: true },
-    { id: '2', name: 'Maria Supervisor', email: 'supervisor@demo.com', role: 'supervisor', phone: '+52 555 987 6543', position: 'Supervisor de Zona', avatarUrl: 'https://picsum.photos/id/65/200/200', verified: true },
-    { id: '3', name: 'Carlos Técnico', email: 'carlos@demo.com', role: 'supervisor', phone: '+52 555 111 2222', position: 'Soporte Técnico', avatarUrl: 'https://picsum.photos/id/91/200/200', verified: true }
+    { 
+        id: '1', 
+        name: 'Admin Master', 
+        email: 'admin@demo.com', 
+        role: 'developer', 
+        phone: '+52 555 123 4567', 
+        position: 'Desarrollador Senior', 
+        avatarUrl: 'https://picsum.photos/id/64/200/200', 
+        verified: true,
+        lat: 19.4326,
+        lng: -99.1332,
+        lastSeen: new Date().toISOString()
+    },
+    { 
+        id: '2', 
+        name: 'Maria Supervisor', 
+        email: 'supervisor@demo.com', 
+        role: 'supervisor', 
+        phone: '+52 555 987 6543', 
+        position: 'Supervisor de Zona', 
+        avatarUrl: 'https://picsum.photos/id/65/200/200', 
+        verified: true,
+        lat: 19.4200,
+        lng: -99.1600,
+        lastSeen: new Date(Date.now() - 3600000).toISOString() // 1 hour ago (Offline)
+    },
+    { 
+        id: '3', 
+        name: 'Carlos Técnico', 
+        email: 'carlos@demo.com', 
+        role: 'supervisor', 
+        phone: '+52 555 111 2222', 
+        position: 'Soporte Técnico', 
+        avatarUrl: 'https://picsum.photos/id/91/200/200', 
+        verified: true,
+        lat: 19.3900,
+        lng: -99.1400,
+        lastSeen: new Date().toISOString() // Online
+    }
 ];
 
 const SEED_CLIENTS: Client[] = [
@@ -172,8 +208,30 @@ const safeParse = (key: string, defaultVal: any) => {
 
 export const StorageService = {
     // Users
-    getUsers: (): User[] => safeParse('app_users', []),
+    getUsers: (): User[] => {
+        const users = safeParse('app_users', []) as User[];
+        const now = Date.now();
+        // Calculate Online status on the fly based on lastSeen
+        return users.map(u => ({
+            ...u,
+            isOnline: u.lastSeen ? (now - new Date(u.lastSeen).getTime() < 120000) : false // Online if seen in last 2 mins
+        }));
+    },
     
+    // New function to update Heartbeat and Location for Realtime Simulation
+    updateUserHeartbeat: (userId: string, lat?: number, lng?: number) => {
+        const users = safeParse('app_users', []) as User[];
+        const index = users.findIndex(u => u.id === userId);
+        if (index !== -1) {
+            users[index].lastSeen = new Date().toISOString();
+            if (lat !== undefined && lng !== undefined) {
+                users[index].lat = lat;
+                users[index].lng = lng;
+            }
+            localStorage.setItem('app_users', JSON.stringify(users));
+        }
+    },
+
     addUser: (user: User, initialPassword?: string) => {
         const users = StorageService.getUsers();
         users.push(user);
@@ -189,7 +247,14 @@ export const StorageService = {
         const users = StorageService.getUsers();
         const index = users.findIndex(u => u.id === updatedUser.id);
         if (index !== -1) {
-            users[index] = updatedUser;
+            // Preserve coordinates if not passed in update
+            const oldUser = users[index];
+            users[index] = {
+                ...updatedUser,
+                lat: updatedUser.lat || oldUser.lat,
+                lng: updatedUser.lng || oldUser.lng,
+                lastSeen: updatedUser.lastSeen || oldUser.lastSeen
+            };
             localStorage.setItem('app_users', JSON.stringify(users));
         }
     },
@@ -209,7 +274,12 @@ export const StorageService = {
         const storedPassword = localStorage.getItem(`pwd_${email}`);
         if (storedPassword && storedPassword === password) {
             const users = StorageService.getUsers();
-            return users.find(u => u.email === email) || null;
+            const user = users.find(u => u.email === email) || null;
+            // Update last seen on login
+            if (user) {
+                StorageService.updateUserHeartbeat(user.id);
+            }
+            return user;
         }
         return null;
     },

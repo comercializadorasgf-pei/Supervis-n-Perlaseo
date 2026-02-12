@@ -7,7 +7,13 @@ export interface User {
     phone: string;
     position: string;
     avatarUrl?: string;
-    verified?: boolean; // New field for email verification status
+    verified?: boolean; 
+    
+    // Realtime Tracking Fields
+    lat?: number;
+    lng?: number;
+    lastSeen?: string; // ISO String
+    isOnline?: boolean; // Computed field
 }
 
 export interface Client {

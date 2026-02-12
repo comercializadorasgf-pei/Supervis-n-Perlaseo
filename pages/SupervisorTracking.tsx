@@ -3,89 +3,19 @@ import { Link } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import mapboxgl from 'mapbox-gl'; 
 import { CONFIG } from '../config';
-
-// Interface for Visit History
-interface VisitHistoryItem {
-    id: string;
-    date: string;
-    type: string;
-    status: 'Completed' | 'Pending' | 'In Progress' | 'Cancelled';
-    clientName: string;
-}
-
-// Simulación de datos GPS dinámicos
-interface SupervisorLoc {
-    id: string;
-    name: string;
-    avatar: string;
-    status: 'active' | 'inactive';
-    currentTask: string;
-    lat: number; 
-    lng: number; 
-    lastUpdate: string;
-    routeHistory: {lat: number, lng: number}[]; 
-    deviceId?: string;
-    visitHistory: VisitHistoryItem[]; 
-    // Internal use for simulation direction
-    direction?: { lat: number, lng: number };
-}
+import { StorageService } from '../services/storage';
+import { User, Visit } from '../types';
 
 const SupervisorTracking = () => {
-    // Initial State - Coordinates centered on CDMX
-    const [supervisors, setSupervisors] = useState<SupervisorLoc[]>([
-        { 
-            id: '1', 
-            name: 'Maria Gonzales', 
-            avatar: 'https://picsum.photos/id/65/100/100', 
-            status: 'active', 
-            currentTask: 'Visita: Farmacia Cruz Verde', 
-            lat: 19.432608, 
-            lng: -99.133209, 
-            lastUpdate: 'Hace 1 min',
-            routeHistory: [],
-            deviceId: 'GPS-8821',
-            direction: { lat: 0.0001, lng: 0.0001 }, // Moving North-East
-            visitHistory: [
-                { id: 'v1', date: '2023-10-25', type: 'Mensual', status: 'Completed', clientName: 'Farmacia Cruz Verde' },
-                { id: 'v2', date: '2023-10-24', type: 'Incidente', status: 'Completed', clientName: 'TechSolutions S.A.' }
-            ]
-        },
-        { 
-            id: '2', 
-            name: 'Carlos Martinez', 
-            avatar: 'https://picsum.photos/id/64/100/100', 
-            status: 'active', 
-            currentTask: 'En traslado', 
-            lat: 19.4200, 
-            lng: -99.1600, 
-            lastUpdate: 'Hace 2 min',
-            routeHistory: [],
-            deviceId: 'GPS-9910',
-            direction: { lat: -0.0001, lng: 0.0002 }, // Moving South-East
-            visitHistory: [
-                { id: 'v4', date: '2023-10-26', type: 'Entrega', status: 'In Progress', clientName: 'Logística Express' }
-            ]
-        },
-        { 
-            id: '3', 
-            name: 'Ana Silva', 
-            avatar: 'https://picsum.photos/id/60/100/100', 
-            status: 'inactive', 
-            currentTask: 'Fuera de turno', 
-            lat: 19.3900, 
-            lng: -99.1400, 
-            lastUpdate: 'Hace 4 horas',
-            routeHistory: [],
-            visitHistory: [
-                { id: 'v6', date: '2023-10-15', type: 'Mensual', status: 'Completed', clientName: 'Centro Comercial Norte' }
-            ]
-        },
-    ]);
+    const [supervisors, setSupervisors] = useState<User[]>([]);
     const [isSidebarOpen, setSidebarOpen] = useState(false);
     const [showRoutes, setShowRoutes] = useState(true); 
-    const [selectedSup, setSelectedSup] = useState<string | null>(null);
+    const [selectedSupId, setSelectedSupId] = useState<string | null>(null);
     const [mapError, setMapError] = useState<string | null>(null);
     
+    // Track previous positions to draw lines
+    const routeHistoryRef = useRef<{[key: string]: number[][]}>({});
+
     // Map State
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
@@ -114,7 +44,6 @@ const SupervisorTracking = () => {
 
                 mapInstance.addControl(new mapboxgl.NavigationControl(), 'top-right');
                 
-                // Add error listener
                 mapInstance.on('error', (e) => {
                     console.error("Mapbox runtime error:", e);
                 });
@@ -127,29 +56,17 @@ const SupervisorTracking = () => {
         }
     }, []);
 
-    // 2. Simular movimiento en tiempo real (GPS Tracking Implementation)
+    // 2. Poll Data from Storage (Realtime Sync)
     useEffect(() => {
-        const interval = setInterval(() => {
-            setSupervisors(prev => prev.map(sup => {
-                if (sup.status === 'inactive') return sup;
-                
-                // Store current pos in history
-                const newHistory = [...sup.routeHistory, { lat: sup.lat, lng: sup.lng }].slice(-50);
+        const fetchRealtimeData = () => {
+            const allUsers = StorageService.getUsers();
+            // Filter only supervisors or developers who have location data
+            const activeStaff = allUsers.filter(u => (u.role === 'supervisor' || u.role === 'developer') && u.lat && u.lng);
+            setSupervisors(activeStaff);
+        };
 
-                // Use predefined direction for smoother "route" simulation
-                const dirLat = sup.direction?.lat || 0.0001;
-                const dirLng = sup.direction?.lng || 0.0001;
-                const jitter = (Math.random() - 0.5) * 0.00005;
-
-                return {
-                    ...sup,
-                    lat: sup.lat + dirLat + jitter,
-                    lng: sup.lng + dirLng + jitter,
-                    lastUpdate: 'Ahora mismo',
-                    routeHistory: newHistory
-                };
-            }));
-        }, 2000); 
+        fetchRealtimeData(); // Initial call
+        const interval = setInterval(fetchRealtimeData, 2000); // Polling every 2s
 
         return () => clearInterval(interval);
     }, []);
@@ -160,18 +77,37 @@ const SupervisorTracking = () => {
 
         try {
             supervisors.forEach(sup => {
+                if (!sup.lat || !sup.lng) return;
+
+                // Update Route History locally for drawing
+                if (!routeHistoryRef.current[sup.id]) {
+                    routeHistoryRef.current[sup.id] = [];
+                }
+                const currentHistory = routeHistoryRef.current[sup.id];
+                const lastPos = currentHistory[currentHistory.length - 1];
+                
+                // Only push if position changed significantly to avoid jitter clutter
+                if (!lastPos || (lastPos[0] !== sup.lng || lastPos[1] !== sup.lat)) {
+                    currentHistory.push([sup.lng, sup.lat]);
+                    if (currentHistory.length > 50) currentHistory.shift(); // Keep last 50 points
+                }
+
                 // MARKERS
+                const isOnline = sup.isOnline; // Calculated by StorageService based on lastSeen
+                const markerColor = isOnline ? '#22c55e' : '#94a3b8'; // Green vs Gray
+
                 if (!markersRef.current[sup.id]) {
                     // Create custom marker element
                     const el = document.createElement('div');
                     el.className = 'marker';
-                    el.style.backgroundImage = `url(${sup.avatar})`;
+                    el.style.backgroundImage = `url(${sup.avatarUrl || 'https://ui-avatars.com/api/?name=' + sup.name})`;
                     el.style.width = '40px';
                     el.style.height = '40px';
                     el.style.backgroundSize = 'cover';
                     el.style.borderRadius = '50%';
-                    el.style.border = `3px solid ${sup.status === 'active' ? '#22c55e' : '#94a3b8'}`;
+                    el.style.border = `3px solid ${markerColor}`;
                     el.style.cursor = 'pointer';
+                    el.style.transition = 'all 0.3s ease';
 
                     // Add popup
                     const popup = new mapboxgl.Popup({ offset: 25 }).setText(sup.name);
@@ -183,10 +119,10 @@ const SupervisorTracking = () => {
                         .addTo(map.current!);
 
                     el.addEventListener('click', () => {
-                        setSelectedSup(sup.id);
+                        setSelectedSupId(sup.id);
                         map.current?.flyTo({
-                            center: [sup.lng, sup.lat],
-                            zoom: 14
+                            center: [sup.lng!, sup.lat!],
+                            zoom: 15
                         });
                     });
 
@@ -195,30 +131,33 @@ const SupervisorTracking = () => {
                     // Update position
                     markersRef.current[sup.id].setLngLat([sup.lng, sup.lat]);
                     
-                    // Update styling based on selection
+                    // Update styling
                     const el = markersRef.current[sup.id].getElement();
-                    el.style.border = sup.id === selectedSup 
-                        ? '3px solid #137fec' 
-                        : `3px solid ${sup.status === 'active' ? '#22c55e' : '#94a3b8'}`;
-                    el.style.zIndex = sup.id === selectedSup ? '10' : '1';
-                    el.style.transform = sup.id === selectedSup ? `${el.style.transform} scale(1.2)` : el.style.transform;
+                    el.style.border = sup.id === selectedSupId 
+                        ? '3px solid #137fec' // Blue if selected
+                        : `3px solid ${markerColor}`; // Status color
+                    el.style.zIndex = sup.id === selectedSupId ? '10' : '1';
+                    
+                    if (sup.id === selectedSupId) {
+                        el.style.transform += ' scale(1.2)';
+                    } else {
+                        // Reset scale if needed (tricky with mapbox transforms, simplistic approach here)
+                        // Ideally strictly manage classNames
+                    }
                 }
 
                 // ROUTES (Polylines)
-                if (showRoutes && sup.routeHistory.length > 1) {
-                    const sourceId = `route-${sup.id}`;
-                    const coordinates = [...sup.routeHistory.map(h => [h.lng, h.lat]), [sup.lng, sup.lat]];
-
+                const sourceId = `route-${sup.id}`;
+                if (showRoutes && currentHistory.length > 1) {
                     const geoJson: any = {
                         type: 'Feature',
                         properties: {},
                         geometry: {
                             type: 'LineString',
-                            coordinates: coordinates
+                            coordinates: currentHistory
                         }
                     };
 
-                    // Check if map source exists securely
                     if (map.current?.getSource(sourceId)) {
                         (map.current.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(geoJson);
                     } else {
@@ -235,15 +174,14 @@ const SupervisorTracking = () => {
                                 'line-cap': 'round'
                             },
                             paint: {
-                                'line-color': sup.id === selectedSup ? '#137fec' : '#22c55e',
+                                'line-color': sup.id === selectedSupId ? '#137fec' : markerColor,
                                 'line-width': 4,
-                                'line-opacity': 0.7
+                                'line-opacity': 0.6
                             }
                         });
                     }
                 } else {
                     // Clean up layer if hidden
-                    const sourceId = `route-${sup.id}`;
                     if (map.current?.getLayer(sourceId)) map.current.removeLayer(sourceId);
                     if (map.current?.getSource(sourceId)) map.current.removeSource(sourceId);
                 }
@@ -251,23 +189,18 @@ const SupervisorTracking = () => {
         } catch (err) {
             console.error("Error updating map markers:", err);
         }
-    }, [supervisors, selectedSup, showRoutes, mapError]);
+    }, [supervisors, selectedSupId, showRoutes, mapError]);
 
-    const handleLinkDevice = () => {
-        const id = prompt("Ingrese el ID del dispositivo GPS (Integration):");
-        if (id) {
-            alert(`Dispositivo ${id} vinculado exitosamente a la red de monitoreo.`);
-        }
-    };
+    const formatLastSeen = (isoString?: string) => {
+        if (!isoString) return 'Desconocido';
+        const date = new Date(isoString);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
 
-    const getStatusBadgeColor = (status: string) => {
-        switch(status) {
-            case 'Completed': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-            case 'Pending': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
-            case 'In Progress': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
-            case 'Cancelled': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-            default: return 'bg-slate-100 text-slate-600';
-        }
+        if (diffMins < 1) return 'Hace un momento';
+        if (diffMins < 60) return `Hace ${diffMins} min`;
+        return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     };
 
     return (
@@ -304,12 +237,15 @@ const SupervisorTracking = () => {
                      <aside className="w-full md:w-[350px] flex flex-col bg-surface-light dark:bg-surface-dark border-r border-slate-200 dark:border-slate-800 z-10 shadow-lg md:shadow-none h-1/3 md:h-full">
                         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
                             <div>
-                                <h2 className="font-bold text-slate-900 dark:text-white">Supervisores</h2>
-                                <p className="text-xs text-slate-500">Mapbox Integration</p>
+                                <h2 className="font-bold text-slate-900 dark:text-white">Personal en Campo</h2>
+                                <p className="text-xs text-slate-500">Actualización en tiempo real</p>
                             </div>
-                            <button onClick={handleLinkDevice} className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-colors" title="Vincular GPS">
-                                <span className="material-symbols-outlined">add_link</span>
-                            </button>
+                            <div className="flex gap-2">
+                                <span className="flex h-3 w-3 relative">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                </span>
+                            </div>
                         </div>
                         
                         {/* Filters / Toggles */}
@@ -321,7 +257,7 @@ const SupervisorTracking = () => {
                                     onChange={(e) => setShowRoutes(e.target.checked)}
                                     className="rounded border-slate-300 text-primary focus:ring-primary"
                                 />
-                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Mostrar Historial de Ruta</span>
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Mostrar Rutas</span>
                             </label>
                         </div>
 
@@ -329,65 +265,44 @@ const SupervisorTracking = () => {
                             {supervisors.map(sup => (
                                 <div 
                                     key={sup.id}
-                                    onClick={() => setSelectedSup(selectedSup === sup.id ? null : sup.id)}
-                                    className={`p-3 rounded-xl border cursor-pointer flex flex-col gap-3 transition-all ${selectedSup === sup.id ? 'bg-primary/5 border-primary ring-1 ring-primary' : 'bg-white dark:bg-slate-800 border-transparent hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                    onClick={() => setSelectedSupId(selectedSupId === sup.id ? null : sup.id)}
+                                    className={`p-3 rounded-xl border cursor-pointer flex flex-col gap-3 transition-all ${selectedSupId === sup.id ? 'bg-primary/5 border-primary ring-1 ring-primary' : 'bg-white dark:bg-slate-800 border-transparent hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                                 >
                                     <div className="flex items-start gap-3">
                                         <div className="relative shrink-0">
-                                            <img src={sup.avatar} alt={sup.name} className="size-10 rounded-full object-cover" />
-                                            <div className={`absolute -bottom-1 -right-1 size-3 rounded-full border-2 border-white dark:border-slate-800 ${sup.status === 'active' ? 'bg-green-500' : 'bg-slate-400'}`}></div>
+                                            <img src={sup.avatarUrl || `https://ui-avatars.com/api/?name=${sup.name}`} alt={sup.name} className="size-10 rounded-full object-cover" />
+                                            <div className={`absolute -bottom-1 -right-1 size-3 rounded-full border-2 border-white dark:border-slate-800 ${sup.isOnline ? 'bg-green-500' : 'bg-slate-400'}`}></div>
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between">
                                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">{sup.name}</h3>
-                                                <span className="text-[10px] text-slate-400">{sup.lastUpdate}</span>
+                                                <span className={`text-[10px] ${sup.isOnline ? 'text-green-600 font-bold' : 'text-slate-400'}`}>
+                                                    {sup.isOnline ? 'EN LÍNEA' : 'OFFLINE'}
+                                                </span>
                                             </div>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{sup.currentTask}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{sup.position}</p>
                                             <div className="flex items-center gap-2 mt-1">
-                                                {sup.status === 'active' && (
-                                                    <div className="flex items-center gap-1 text-[10px] text-green-600 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded font-bold">
-                                                        <span className="material-symbols-outlined text-[10px] animate-pulse">satellite_alt</span>
-                                                        GPS ON
-                                                    </div>
-                                                )}
-                                                {sup.deviceId && (
-                                                    <span className="text-[10px] bg-slate-100 dark:bg-slate-700 px-1 rounded text-slate-500">{sup.deviceId}</span>
-                                                )}
+                                                <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                    <span className="material-symbols-outlined text-[12px]">schedule</span>
+                                                    {formatLastSeen(sup.lastSeen)}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
-
-                                    {/* Expanded Visit History */}
-                                    {selectedSup === sup.id && (
-                                        <div className="mt-1 pt-3 border-t border-slate-200 dark:border-slate-700 animate-in slide-in-from-top-2 fade-in duration-200 cursor-default" onClick={e => e.stopPropagation()}>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Historial Reciente</h4>
-                                                <span className="material-symbols-outlined text-slate-400 text-sm">history</span>
-                                            </div>
-                                            <div className="space-y-2">
-                                                {sup.visitHistory && sup.visitHistory.length > 0 ? (
-                                                    sup.visitHistory.map(visit => (
-                                                        <div key={visit.id} className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2 border border-slate-100 dark:border-slate-700">
-                                                            <div className="flex justify-between items-start mb-1">
-                                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate max-w-[120px]" title={visit.clientName}>{visit.clientName}</span>
-                                                                <span className="text-[10px] text-slate-400 font-mono">{visit.date}</span>
-                                                            </div>
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-[10px] text-slate-500 dark:text-slate-400">{visit.type}</span>
-                                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${getStatusBadgeColor(visit.status)}`}>
-                                                                    {visit.status === 'Completed' ? 'COMPLETADA' : visit.status}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <p className="text-xs text-slate-400 italic text-center py-2">Sin visitas recientes.</p>
-                                                )}
-                                            </div>
+                                    
+                                    {/* Additional Info when Selected */}
+                                    {selectedSupId === sup.id && (
+                                        <div className="pt-2 border-t border-slate-100 dark:border-slate-700 mt-1 animate-in fade-in slide-in-from-top-1">
+                                            <p className="text-[10px] text-slate-500 font-mono">
+                                                Lat: {sup.lat?.toFixed(5)}, Lng: {sup.lng?.toFixed(5)}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
                             ))}
+                            {supervisors.length === 0 && (
+                                <p className="text-center text-slate-400 text-sm mt-10">Esperando conexión de dispositivos...</p>
+                            )}
                         </div>
                      </aside>
                      

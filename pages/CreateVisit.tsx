@@ -24,6 +24,9 @@ const CreateVisit = () => {
         notes: ''
     });
 
+    // Resolved Client State (For automatic population)
+    const [resolvedClient, setResolvedClient] = useState<Client | null>(null);
+
     // Date States for Manual Mode
     const [selectedDates, setSelectedDates] = useState<string[]>([new Date().toISOString().split('T')[0]]); // Default today
     const [manualDateInput, setManualDateInput] = useState(''); // Control input state
@@ -57,6 +60,7 @@ const CreateVisit = () => {
             const foundClient = loadedClients.find(c => c.id === preSelectedClientId);
             if (foundClient) {
                 initialClientInput = `${foundClient.name} (ID: ${foundClient.id})`;
+                setResolvedClient(foundClient);
             }
         }
 
@@ -67,6 +71,28 @@ const CreateVisit = () => {
         }));
 
     }, [user, searchParams]);
+
+    // Real-time Client Resolution Logic
+    useEffect(() => {
+        if (!formData.clientInput) {
+            setResolvedClient(null);
+            return;
+        }
+
+        // Normalize input
+        const inputLower = formData.clientInput.toLowerCase().trim();
+
+        const found = clients.find(c => {
+            const nameMatch = c.name.toLowerCase() === inputLower;
+            const formattedMatch = `${c.name} (ID: ${c.id})`.toLowerCase() === inputLower;
+            // Also check if input matches just the ID
+            const idMatch = c.id.toLowerCase() === inputLower;
+            
+            return nameMatch || formattedMatch || idMatch;
+        });
+
+        setResolvedClient(found || null);
+    }, [formData.clientInput, clients]);
 
     // --- Helper Logic for Dates ---
 
@@ -140,17 +166,14 @@ const CreateVisit = () => {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Resolve Client
+        // Resolve Client Logic
         let clientName = formData.clientInput;
         let clientId = `MANUAL-${Date.now()}`;
-        const existingClient = clients.find(c => 
-            c.name.toLowerCase() === formData.clientInput.toLowerCase() || 
-            `${c.name} (ID: ${c.id})` === formData.clientInput
-        );
-
-        if (existingClient) {
-            clientId = existingClient.id;
-            clientName = existingClient.name;
+        
+        // Use automatically populated data if available
+        if (resolvedClient) {
+            clientId = resolvedClient.id;
+            clientName = resolvedClient.name;
         }
 
         const supervisorIdToUse = user?.role === 'developer' ? formData.supervisorId : user?.id;
@@ -173,7 +196,7 @@ const CreateVisit = () => {
 
         // Detailed Confirmation
         const confirmationMsg = `Resumen de Programación:\n` +
-            `- Cliente: ${clientName}\n` +
+            `- Cliente: ${clientName} (ID: ${clientId})\n` +
             `- Supervisor: ${selectedSupervisor.name}\n` +
             `- Tipo: ${formData.type}\n` +
             `- Total de Visitas: ${datesToCreate.length}\n\n` +
@@ -187,8 +210,8 @@ const CreateVisit = () => {
         datesToCreate.forEach((dateStr, index) => {
             const newVisit: Visit = {
                 id: (Date.now() + index + Math.floor(Math.random() * 1000)).toString(), // Ensure unique IDs
-                clientId: clientId,
-                clientName: clientName,
+                clientId: clientId, // Automatically populated ID
+                clientName: clientName, // Automatically populated Name
                 supervisorId: selectedSupervisor.id,
                 supervisorName: selectedSupervisor.name,
                 status: 'Pending',
@@ -253,13 +276,28 @@ const CreateVisit = () => {
                                     value={formData.clientInput}
                                     onChange={e => setFormData({...formData, clientInput: e.target.value})}
                                     placeholder="Seleccione de la lista o escriba el nombre..."
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
+                                    className={`w-full px-4 py-2 rounded-lg border bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none ${resolvedClient ? 'border-green-500 focus:ring-green-500' : 'border-slate-300 dark:border-slate-600'}`}
                                 />
                                 <datalist id="clients-list">
                                     {clients.map(client => (
                                         <option key={client.id} value={`${client.name} (ID: ${client.id})`} />
                                     ))}
                                 </datalist>
+                                
+                                {/* Visual Feedback for Auto-Population */}
+                                <div className="mt-2 h-6">
+                                    {resolvedClient ? (
+                                        <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-xs font-bold animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                                            <span>Cliente Identificado: {resolvedClient.name} (ID: {resolvedClient.id})</span>
+                                        </div>
+                                    ) : formData.clientInput.length > 0 ? (
+                                        <div className="flex items-center gap-2 text-amber-500 text-xs animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <span className="material-symbols-outlined text-[16px]">info</span>
+                                            <span>Nuevo cliente o entrada manual (Se generará ID temporal)</span>
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
 
                             {/* Supervisor Selection (Admin Only) */}
